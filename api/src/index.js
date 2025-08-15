@@ -1,16 +1,140 @@
+
+
+
 import express from 'express';
 import cors from 'cors';
+import jwt from 'jsonwebtoken';
+import bcrypt from 'bcryptjs';
+import path from "path";
+import { fileURLToPath } from "url";
+
+import { createClient } from '@supabase/supabase-js';
+import dotenv from 'dotenv';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+dotenv.config({ path: path.join(__dirname, ".env") });
+const SUPABASE_URL = process.env.SUPABASE_URL;
+const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+
 
 const app = express();
 const port = process.env.PORT || 4000;
 
+// テスト用ユーザー（本番はDB管理推奨）
+const users = [
+  {
+    id: 1,
+    username: 'testuser',
+    passwordHash: bcrypt.hashSync('password123', 10), // パスワード: password123
+    role: 'admin',
+  },
+  {
+    id: 2,
+    username: 'user1',
+    passwordHash: bcrypt.hashSync('userpass', 10), // パスワード: userpass
+    role: 'user',
+  },
+];
+// ロール判定ミドルウェア
+function authorizeRole(roles) {
+  return (req, res, next) => {
+    if (!req.user || !roles.includes(req.user.role)) {
+      return res.status(403).json({ error: 'Forbidden: insufficient role' });
+    }
+    next();
+  };
+}
+
+const JWT_SECRET = process.env.JWT_SECRET || 'dev_secret_key';
+const JWT_EXPIRES_IN = '1h';
+
 app.use(cors());
 app.use(express.json());
 
+
+// JWT認証ミドルウェア
+function authenticateToken(req, res, next) {
+  const authHeader = req.headers['authorization'];
+  const token = authHeader && authHeader.split(' ')[1];
+  if (!token) return res.status(401).json({ error: 'Token required' });
+  jwt.verify(token, JWT_SECRET, (err, user) => {
+    if (err) return res.status(403).json({ error: 'Invalid token' });
+    req.user = user;
+    next();
+  });
+}
+
+// ヘルスチェック
 app.get('/health', (req, res) => {
   res.json({ status: 'ok' });
 });
 
+// ログインAPI
+app.post('/login', (req, res) => {
+  const { username, password } = req.body;
+  const user = users.find(u => u.username === username);
+  if (!user) return res.status(401).json({ error: 'Invalid credentials' });
+  if (!bcrypt.compareSync(password, user.passwordHash)) {
+    return res.status(401).json({ error: 'Invalid credentials' });
+  }
+  const token = jwt.sign({ id: user.id, username: user.username, role: user.role }, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
+  res.json({ token });
+});
+
+// ログアウトAPI（クライアント側でトークン破棄）
+app.post('/logout', (req, res) => {
+  // JWTはステートレスなのでサーバ側で明示的な無効化はしない
+  res.json({ message: 'Logged out (token should be discarded on client)' });
+});
+
+
+// 認証が必要なテストAPI
+app.get('/me', authenticateToken, (req, res) => {
+  res.json({ user: req.user });
+});
+
+// 管理者のみアクセス可能なAPI例
+app.get('/admin-only', authenticateToken, authorizeRole(['admin']), (req, res) => {
+  res.json({ message: '管理者のみアクセス可能', user: req.user });
+});
+
+// 一般ユーザーもアクセス可能なAPI例
+app.get('/user-or-admin', authenticateToken, authorizeRole(['admin', 'user']), (req, res) => {
+  res.json({ message: 'adminまたはuserがアクセス可能', user: req.user });
+});
+
+
+// Supabase RLSサンプルAPI（adminのみ全件、userは自分のデータのみ取得）
+app.get('/supabase-items', authenticateToken, async (req, res) => {
+  let query = supabase.from('items').select('*');
+  if (req.user.role !== 'admin') {
+    // userは自分のidに紐づくデータのみ取得（例: user_idカラム）
+    query = query.eq('user_id', req.user.id);
+  }
+  const { data, error } = await query;
+  if (error) return res.status(500).json({ error: error.message });
+  res.json({ data });
+});
+
+
+// Supabase RLSサンプルAPI（adminのみ全件、userは自分のデータのみ取得）
+app.get('/supabase-items', authenticateToken, async (req, res) => {
+  let query = supabase.from('items').select('*');
+  if (req.user.role !== 'admin') {
+    // userは自分のidに紐づくデータのみ取得（例: user_idカラム）
+    query = query.eq('user_id', req.user.id);
+  }
+  const { data, error } = await query;
+  if (error) return res.status(500).json({ error: error.message });
+  res.json({ data });
+});
+
 app.listen(port, () => {
   console.log(`API server listening at http://localhost:${port}`);
+  console.log('Supabase URL:', SUPABASE_URL);
+  console.log('Supabase Service Role Key:', SUPABASE_SERVICE_ROLE_KEY ? '[set]' : '[not set]');
+  console.log('JWT_SECRET:', JWT_SECRET ? '[set]' : '[not set]');
 });
