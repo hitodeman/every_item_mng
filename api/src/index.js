@@ -132,6 +132,87 @@ app.get('/supabase-items', authenticateToken, async (req, res) => {
   res.json({ data });
 });
 
+
+// --- 支店（branches）CRUD ---
+// 一覧取得（adminのみ全件、userは自分の支店のみ）
+app.get('/branches', authenticateToken, async (req, res) => {
+  let query = supabase.from('branches').select('*').eq('is_deleted', false);
+  if (req.user.role !== 'admin') {
+    // userは自分のbranch_idのみ
+    const { data: profile, error: profileError } = await supabase.from('profiles').select('branch_id').eq('id', req.user.id).single();
+    if (profileError) return res.status(500).json({ error: profileError.message });
+    query = query.eq('id', profile.branch_id);
+  }
+  const { data, error } = await query;
+  if (error) return res.status(500).json({ error: error.message });
+  res.json({ data });
+});
+
+// 追加（adminのみ）
+app.post('/branches', authenticateToken, authorizeRole(['admin']), async (req, res) => {
+  const { name, address } = req.body;
+  const { data, error } = await supabase.from('branches').insert([{ name, address }]).select();
+  if (error) return res.status(500).json({ error: error.message });
+  res.json({ data });
+});
+
+// 編集（adminのみ）
+app.put('/branches/:id', authenticateToken, authorizeRole(['admin']), async (req, res) => {
+  const { id } = req.params;
+  const { name, address } = req.body;
+  const { data, error } = await supabase.from('branches').update({ name, address }).eq('id', id).select();
+  if (error) return res.status(500).json({ error: error.message });
+  res.json({ data });
+});
+
+// 論理削除（adminのみ）
+app.delete('/branches/:id', authenticateToken, authorizeRole(['admin']), async (req, res) => {
+  const { id } = req.params;
+  const { data, error } = await supabase.from('branches').update({ is_deleted: true }).eq('id', id).select();
+  if (error) return res.status(500).json({ error: error.message });
+  res.json({ data });
+});
+
+// --- ユーザープロファイル（profiles）CRUD ---
+// 一覧取得（adminは全件、userは自分のみ）
+app.get('/profiles', authenticateToken, async (req, res) => {
+  let query = supabase.from('profiles').select('*');
+  if (req.user.role !== 'admin') {
+    query = query.eq('id', req.user.id);
+  }
+  const { data, error } = await query;
+  if (error) return res.status(500).json({ error: error.message });
+  res.json({ data });
+});
+
+// 追加（adminのみ）
+app.post('/profiles', authenticateToken, authorizeRole(['admin']), async (req, res) => {
+  const { id, name, role, branch_id } = req.body;
+  const { data, error } = await supabase.from('profiles').insert([{ id, name, role, branch_id }]).select();
+  if (error) return res.status(500).json({ error: error.message });
+  res.json({ data });
+});
+
+// 編集（adminは任意、userは自分のみ）
+app.put('/profiles/:id', authenticateToken, async (req, res) => {
+  const { id } = req.params;
+  if (req.user.role !== 'admin' && req.user.id !== id) {
+    return res.status(403).json({ error: 'Forbidden' });
+  }
+  const { name, role, branch_id } = req.body;
+  const { data, error } = await supabase.from('profiles').update({ name, role, branch_id }).eq('id', id).select();
+  if (error) return res.status(500).json({ error: error.message });
+  res.json({ data });
+});
+
+// 論理削除は行わず、物理削除API（adminのみ）
+app.delete('/profiles/:id', authenticateToken, authorizeRole(['admin']), async (req, res) => {
+  const { id } = req.params;
+  const { data, error } = await supabase.from('profiles').delete().eq('id', id).select();
+  if (error) return res.status(500).json({ error: error.message });
+  res.json({ data });
+});
+
 app.listen(port, () => {
   console.log(`API server listening at http://localhost:${port}`);
   console.log('Supabase URL:', SUPABASE_URL);

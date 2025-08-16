@@ -12,5 +12,8 @@
   "packageManager": "pnpm@10.14.0",
   "dependencies": {
     "dotenv": "^17.2.1"
+  },
+  "devDependencies": {
+    "@supabase/mcp-server-supabase": "^0.4.5"
   }
 }
