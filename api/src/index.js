@@ -24,15 +24,16 @@ const app = express();
 const port = process.env.PORT || 4000;
 
 // テスト用ユーザー（本番はDB管理推奨）
+// idはuuidで運用
 const users = [
   {
-    id: 1,
+    id: '11111111-1111-1111-1111-111111111111',
     username: 'testuser',
     passwordHash: bcrypt.hashSync('password123', 10), // パスワード: password123
     role: 'admin',
   },
   {
-    id: 2,
+    id: '22222222-2222-2222-2222-222222222222',
     username: 'user1',
     passwordHash: bcrypt.hashSync('userpass', 10), // パスワード: userpass
     role: 'user',
@@ -80,6 +81,7 @@ app.post('/login', (req, res) => {
   if (!bcrypt.compareSync(password, user.passwordHash)) {
     return res.status(401).json({ error: 'Invalid credentials' });
   }
+  // idはuuidでJWTにセット
   const token = jwt.sign({ id: user.id, username: user.username, role: user.role }, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
   res.json({ token });
 });
@@ -209,6 +211,53 @@ app.put('/profiles/:id', authenticateToken, async (req, res) => {
 app.delete('/profiles/:id', authenticateToken, authorizeRole(['admin']), async (req, res) => {
   const { id } = req.params;
   const { data, error } = await supabase.from('profiles').delete().eq('id', id).select();
+  if (error) return res.status(500).json({ error: error.message });
+  res.json({ data });
+});
+
+
+// --- 在庫数増減 ---
+// POST /items/:id/stock { change: number, reason?: string }
+app.post('/items/:id/stock', authenticateToken, async (req, res) => {
+  const { id } = req.params;
+  const { change, reason } = req.body;
+  if (!Number.isInteger(change) || change === 0) {
+    return res.status(400).json({ error: 'changeは非ゼロの整数で指定してください' });
+  }
+  // 現在の在庫・閾値取得
+  const { data: items, error: getErr } = await supabase.from('items').select('stock, threshold').eq('id', id).single();
+  if (getErr || !items) return res.status(404).json({ error: 'アイテムが見つかりません' });
+  const before_stock = items.stock;
+  const after_stock = before_stock + change;
+  const threshold = items.threshold;
+  if (after_stock < 0) return res.status(400).json({ error: '在庫数がマイナスになります' });
+  // 在庫数更新
+  const { error: updateErr } = await supabase.from('items').update({ stock: after_stock }).eq('id', id);
+  if (updateErr) return res.status(500).json({ error: updateErr.message });
+  // 履歴記録
+  const { error: histErr } = await supabase.from('items_history').insert({
+    item_id: id,
+    user_id: req.user.id,
+    change,
+    before_stock,
+    after_stock,
+    reason: reason || null
+  });
+  if (histErr) return res.status(500).json({ error: histErr.message });
+  // 閾値アラート判定
+  let alert = false, alert_message = "";
+  if (after_stock < threshold) {
+    alert = true;
+    alert_message = `在庫数が閾値(${threshold})を下回りました`;
+  }
+  res.json({ after_stock, threshold, alert, alert_message });
+});
+
+// --- 在庫増減履歴取得 ---
+// GET /items/:id/history
+app.get('/items/:id/history', authenticateToken, async (req, res) => {
+  const { id } = req.params;
+  const { data, error } = await supabase.from('items_history').select('*').eq('item_id', id).order('created_at', { ascending: false });
   if (error) return res.status(500).json({ error: error.message });
   res.json({ data });
 });

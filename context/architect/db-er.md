@@ -28,12 +28,26 @@ erDiagram
     timestamp created_at
   }
 
+
   items {
     int id PK "アイテムID"
     uuid user_id FK "所有ユーザーID"
     text name "アイテム名"
-    int quantity "在庫数"
+    int stock "在庫数"
     int price "金額"
+    int threshold "閾値"
+    boolean is_deleted "論理削除フラグ"
+    timestamp created_at
+  }
+
+  items_history {
+    int id PK "履歴ID"
+    int item_id FK "アイテムID"
+    uuid user_id FK "操作ユーザーID"
+    int change "増減数"
+    int before_stock "変更前在庫"
+    int after_stock "変更後在庫"
+    text reason "理由"
     timestamp created_at
   }
 
@@ -41,6 +55,7 @@ erDiagram
   users ||--o| profiles : "has profile"
   branches ||--o{ profiles : "has users"
   profiles ||--o{ items : "has items"
+  items ||--o{ items_history : "has history"
 ```
 
 ---
@@ -48,8 +63,10 @@ erDiagram
 - users: Supabase Authユーザー情報（UUID主キー）
 - branches: 支店情報（UUID主キー、論理削除対応）
 - profiles: アプリ用ユーザープロファイル（auth.users.idを参照、branch_idで支店紐付け）
-- items: 在庫アイテム情報（user_idでprofilesと紐付け）
-- RLS: 各テーブルでロール・所有者・論理削除等に応じたアクセス制御
+
+- items: 在庫アイテム情報（user_idでprofilesと紐付け、stock/threshold/論理削除対応）
+- items_history: 在庫数増減履歴（item_id, user_id, change, before/after, reason, created_at）
+- RLS: 各テーブルでロール・所有者・論理削除等に応じたアクセス制御（items_historyもuser_id=auth.uid()でRLS）
 
 ---
 
@@ -63,9 +80,11 @@ erDiagram
 
 ---
 
+
 ## RLS（Row Level Security）設計概要
 
 - branches: 管理者のみ全件操作可、userは自分の所属支店のみ参照可
 - profiles: 管理者のみ全件操作可、userは自分のプロフィールのみ参照・編集可
 - items: userは自分のuser_idのみ参照可、adminは全件参照可
+- items_history: userは自分のuser_idのみ参照可、adminは全件参照可（uuid型で統一）
 
