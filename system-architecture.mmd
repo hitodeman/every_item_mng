@@ -1,0 +1,42 @@
+# システム構成図（marmaid記法）
+
+```mermaid
+flowchart TD
+  subgraph Web[フロントエンド: web/ (Next.js/PWA)]
+    A1[app/]
+    A2[public/]
+    A3[pages, components, hooks など]
+  end
+
+  subgraph API[バックエンド: api/ (Node.js/Express)]
+    B1[src/index.js\n(認証・権限・API)]
+    B2[src/supabaseClient.js\n(Supabase連携)]
+    B3[.env\n(環境変数)]
+  end
+
+  subgraph Context[要件・設計: context/feature/requirement-definition]
+    C1[task.md\n(タスク一覧)]
+    C2[specification.md\n(実装要件)]
+    C3[design-doc.md\n(設計方針)]
+  end
+
+  subgraph DB[Supabase (PostgreSQL)]
+    D1[itemsテーブル\n(RLS, 在庫データ)]
+    D2[usersテーブル\n(認証ユーザー)]
+  end
+
+  Web -->|APIリクエスト| API
+  API -->|DBアクセス| DB
+  API -->|設計・要件参照| Context
+  Web -->|設計・要件参照| Context
+
+  classDef folder fill:#f9f,stroke:#333,stroke-width:1px;
+  class Web,API,Context,DB folder;
+```
+
+---
+
+- Web: Next.js(PWA)によるフロントエンド
+- API: Node.js/Express, JWT認証・権限管理, Supabase連携
+- Context: 要件・設計ドキュメント群
+- DB: Supabase/PostgreSQL, RLSによる権限制御
