@@ -219,3 +219,50 @@ app.listen(port, () => {
   console.log('Supabase Service Role Key:', SUPABASE_SERVICE_ROLE_KEY ? '[set]' : '[not set]');
   console.log('JWT_SECRET:', JWT_SECRET ? '[set]' : '[not set]');
 });
+
+// --- 在庫アイテム（items）CRUD --- 
+// 一覧取得（adminは全件、userは自分のuser_idのみ）
+app.get('/items', authenticateToken, async (req, res) => {
+  let query = supabase.from('items').select('*').eq('is_deleted', false);
+  if (req.user.role !== 'admin') {
+    // userは自分のuser_idに紐づくデータのみ取得
+    query = query.eq('user_id', req.user.id);
+  }
+  const { data, error } = await query;
+  if (error) return res.status(500).json({ error: error.message });
+  res.json({ data });
+});
+
+// 追加（adminのみ）
+app.post('/items', authenticateToken, authorizeRole(['admin']), async (req, res) => {
+  const { name, unit, price, stock, threshold, user_id } = req.body;
+  // バリデーション: name必須, unit必須, price=半角数字4桁以内/整数/日本円, stock=整数, threshold=整数
+  if (!name || !unit) return res.status(400).json({ error: 'name, unitは必須です' });
+  if (!/^[0-9]{1,4}$/.test(String(price))) return res.status(400).json({ error: 'priceは半角数字4桁以内の整数（日本円）で入力してください' });
+  if (!Number.isInteger(stock)) return res.status(400).json({ error: 'stockは整数で入力してください' });
+  if (!Number.isInteger(threshold)) return res.status(400).json({ error: 'thresholdは整数で入力してください' });
+  const { data, error } = await supabase.from('items').insert([{ name, unit, price, stock, threshold, user_id, is_deleted: false }]).select();
+  if (error) return res.status(500).json({ error: error.message });
+  res.json({ data });
+});
+
+// 編集（adminのみ）
+app.put('/items/:id', authenticateToken, authorizeRole(['admin']), async (req, res) => {
+  const { id } = req.params;
+  const { name, unit, price, stock, threshold } = req.body;
+  if (!name || !unit) return res.status(400).json({ error: 'name, unitは必須です' });
+  if (!/^[0-9]{1,4}$/.test(String(price))) return res.status(400).json({ error: 'priceは半角数字4桁以内の整数（日本円）で入力してください' });
+  if (!Number.isInteger(stock)) return res.status(400).json({ error: 'stockは整数で入力してください' });
+  if (!Number.isInteger(threshold)) return res.status(400).json({ error: 'thresholdは整数で入力してください' });
+  const { data, error } = await supabase.from('items').update({ name, unit, price, stock, threshold }).eq('id', id).select();
+  if (error) return res.status(500).json({ error: error.message });
+  res.json({ data });
+});
+
+// 論理削除（adminのみ）
+app.delete('/items/:id', authenticateToken, authorizeRole(['admin']), async (req, res) => {
+  const { id } = req.params;
+  const { data, error } = await supabase.from('items').update({ is_deleted: true }).eq('id', id).select();
+  if (error) return res.status(500).json({ error: error.message });
+  res.json({ data });
+});
