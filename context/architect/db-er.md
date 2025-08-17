@@ -23,7 +23,7 @@ erDiagram
   profiles {
     uuid id PK "ユーザーID (auth.users.id)"
     text name "氏名"
-    text role "ロール"
+    text role "ロール (admin/branch_admin/user)"
     uuid branch_id FK "所属支店ID"
     timestamp created_at
   }
@@ -32,6 +32,7 @@ erDiagram
   items {
     int id PK "アイテムID"
     uuid user_id FK "所有ユーザーID"
+    uuid branch_id FK "所属支店ID"
     text name "アイテム名"
     int stock "在庫数"
     int price "金額"
@@ -74,6 +75,7 @@ erDiagram
 
 - `profiles.role` カラムでユーザーの権限を管理します。
   - `admin`: 全データ参照・管理可能
+  - `branch_admin`: 自分の支店の全ユーザーのデータ参照・管理可能
   - `user`: 自分のデータのみ参照・操作可能
 - API・DB（RLS）両方でロール判定を行い、アクセス制御を実現しています。
 - ロールは今後の拡張で追加可能です。
@@ -83,8 +85,8 @@ erDiagram
 
 ## RLS（Row Level Security）設計概要
 
-- branches: 管理者のみ全件操作可、userは自分の所属支店のみ参照可
-- profiles: 管理者のみ全件操作可、userは自分のプロフィールのみ参照・編集可
-- items: userは自分のuser_idのみ参照可、adminは全件参照可
-- items_history: userは自分のuser_idのみ参照可、adminは全件参照可（uuid型で統一）
+- branches: 管理者のみ全件操作可、branch_admin/userは自分の所属支店のみ参照可
+- profiles: 管理者のみ全件操作可、branch_adminは自支店ユーザーのみ参照可、userは自分のプロフィールのみ参照・編集可
+- items: adminは全件参照可、branch_admin/userは自分の支店の全ユーザー分参照可
+- items_history: adminは全件参照可、branch_admin/userは自分の支店の全ユーザー分参照可（uuid型で統一）
 

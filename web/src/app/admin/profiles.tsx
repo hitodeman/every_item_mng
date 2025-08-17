@@ -12,6 +12,8 @@ function parseJwt(token: string): any {
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
 export default function ProfilesAdmin() {
+  const [myBranchId, setMyBranchId] = useState("");
+  const [myRole, setMyRole] = useState("");
   const [profiles, setProfiles] = useState([]);
   const [name, setName] = useState("");
   const [role, setRole] = useState("user");
@@ -31,9 +33,18 @@ export default function ProfilesAdmin() {
     if (jwtPattern.test(raw)) {
       setToken(raw);
       const payload = parseJwt(raw);
-      if (payload?.role !== "admin") {
-        setRoleError("管理者のみアクセス可能です");
+      setMyRole(payload?.role || "");
+      if (payload?.role !== "admin" && payload?.role !== "branch_admin") {
+        setRoleError("管理者または支店管理者のみアクセス可能です");
       }
+      // 自分のbranch_id取得
+      fetch(`${API_URL}/profiles`, {
+        headers: { Authorization: `Bearer ${raw}` },
+      })
+        .then(res => res.json())
+        .then(res => {
+          if (res.data && res.data.length > 0) setMyBranchId(res.data[0].branch_id || "");
+        });
     } else {
       localStorage.removeItem("jwt_token");
       setToken("");
@@ -52,13 +63,14 @@ export default function ProfilesAdmin() {
   // 追加
   const handleAdd = async () => {
     if (!userId || !name) return;
+    const sendBranchId = myRole === "branch_admin" ? myBranchId : branchId;
     await fetch(`${API_URL}/profiles`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${token}`,
       },
-      body: JSON.stringify({ id: userId, name, role, branch_id: branchId }),
+      body: JSON.stringify({ id: userId, name, role, branch_id: sendBranchId }),
     });
     setUserId("");
     setName("");
@@ -82,13 +94,14 @@ export default function ProfilesAdmin() {
   // 編集保存
   const handleEdit = async () => {
     if (!editId) return;
+    const sendBranchId = myRole === "branch_admin" ? myBranchId : editBranchId;
     await fetch(`${API_URL}/profiles/${editId}`, {
       method: "PUT",
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${token}`,
       },
-      body: JSON.stringify({ name: editName, role: editRole, branch_id: editBranchId }),
+      body: JSON.stringify({ name: editName, role: editRole, branch_id: sendBranchId }),
     });
     setEditId(null);
     setEditName("");
@@ -120,7 +133,7 @@ export default function ProfilesAdmin() {
   return (
     <div style={{ maxWidth: 700, margin: "2rem auto" }}>
       <h2>ユーザー管理</h2>
-      <div style={{ marginBottom: 16 }}>
+      <div style={{ marginBottom: 16, display: 'flex', gap: 8, alignItems: 'center' }}>
         <input
           placeholder="ユーザーID (auth.users.id)"
           value={userId}
@@ -135,11 +148,14 @@ export default function ProfilesAdmin() {
           <option value="user">user</option>
           <option value="admin">admin</option>
         </select>
-        <input
-          placeholder="支店ID"
-          value={branchId}
-          onChange={(e) => setBranchId(e.target.value)}
-        />
+        {/* branch_admin時は支店ID欄を非表示 */}
+        {myRole !== "branch_admin" && (
+          <input
+            placeholder="支店ID"
+            value={branchId}
+            onChange={(e) => setBranchId(e.target.value)}
+          />
+        )}
         <button onClick={handleAdd}>追加</button>
       </div>
       <table border={1} cellPadding={8} style={{ width: "100%" }}>
@@ -169,12 +185,15 @@ export default function ProfilesAdmin() {
                     <option value="admin">admin</option>
                   </select>
                 </td>
-                <td>
-                  <input
-                    value={editBranchId}
-                    onChange={(e) => setEditBranchId(e.target.value)}
-                  />
-                </td>
+                {/* branch_admin時は支店ID欄を非表示 */}
+                {myRole !== "branch_admin" && (
+                  <td>
+                    <input
+                      value={editBranchId}
+                      onChange={(e) => setEditBranchId(e.target.value)}
+                    />
+                  </td>
+                )}
                 <td>
                   <button onClick={handleEdit}>保存</button>
                   <button onClick={() => setEditId(null)}>キャンセル</button>

@@ -33,12 +33,14 @@ graph TD
     A2[管理画面 /admin/branches /admin/profiles /admin/items]
     A3[ログイン画面 /login]
     A4[在庫数増減・履歴・アラート表示]
+    A5[支店管理者branch_adminは自支店の全ユーザーのアイテム・ユーザー管理が可能]
   end
   subgraph APIサーバー
     B1[Express API]
-    B2[JWT認証/RBAC]
+    B2[JWT認証/RBAC admin/branch_admin/user]
     B3[Supabase JS Client]
     B4[在庫数増減API・履歴API・閾値アラート返却]
+    B5[branch_adminは自支店の全ユーザー分のデータ取得・管理可]
   end
   subgraph DB
     C1[Supabase/PostgreSQL]
@@ -53,9 +55,9 @@ graph TD
 ```
 
 ### 管理画面
-- /admin/branches: 支店管理（CRUD）
-- /admin/profiles: ユーザー管理（CRUD）
-- /admin/items: 在庫アイテム管理・在庫数増減・履歴・アラート表示
+- /admin/branches: 支店管理（CRUD、adminのみ）
+- /admin/profiles: ユーザー管理（CRUD、admin/branch_admin。branch_adminは自支店ユーザーのみ管理可、支店IDは自動付与・非表示）
+- /admin/items: 在庫アイテム管理・在庫数増減・履歴・アラート表示（admin/branch_admin。branch_adminは自支店の全ユーザー分管理可）
 - /login: ログイン画面（JWT保存）
 
 ### APIサーバー

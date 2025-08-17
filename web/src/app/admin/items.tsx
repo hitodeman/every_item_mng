@@ -23,14 +23,15 @@ type Item = {
 };
 
 export default function ItemsAdmin() {
+  const [branchId, setBranchId] = useState("");
   // ロールチェック: admin以外はアクセス不可
   const [roleError, setRoleError] = useState("");
   useEffect(() => {
     const raw = localStorage.getItem("jwt_token") || "";
     try {
       const payload = JSON.parse(atob(raw.split('.')[1]));
-      if (payload?.role !== "admin") {
-        setRoleError("管理者のみアクセス可能です");
+      if (payload?.role !== "admin" && payload?.role !== "branch_admin") {
+        setRoleError("管理者または支店管理者のみアクセス可能です");
       }
     } catch {}
   }, []);
@@ -69,6 +70,14 @@ export default function ItemsAdmin() {
       setToken(raw);
       const payload = parseJwt(raw);
       setUserId(payload?.id ?? null);
+      // プロファイルからbranch_id取得
+      fetch(`${API_URL}/profiles`, {
+        headers: { Authorization: `Bearer ${raw}` },
+      })
+        .then(res => res.json())
+        .then(res => {
+          if (res.data && res.data.length > 0) setBranchId(res.data[0].branch_id || "");
+        });
     } else {
       localStorage.removeItem("jwt_token");
       setToken("");
@@ -120,7 +129,8 @@ export default function ItemsAdmin() {
         price: Number(price),
         stock: Number(stock),
         threshold: Number(threshold),
-  user_id: userIdInput,
+        user_id: userIdInput,
+        branch_id: branchId,
       }),
     });
     const data = await res.json();

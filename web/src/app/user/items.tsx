@@ -4,6 +4,13 @@ import React, { useEffect, useState } from "react";
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
 export default function UserItems() {
+  const [branchId, setBranchId] = useState("");
+  // 追加フォーム用state
+  const [name, setName] = useState("");
+  const [unit, setUnit] = useState("");
+  const [price, setPrice] = useState("");
+  const [stock, setStock] = useState("");
+  const [threshold, setThreshold] = useState("");
   // user権限以外は即エラー表示
   const [roleError, setRoleError] = useState("");
   useEffect(() => {
@@ -43,6 +50,14 @@ export default function UserItems() {
       setToken(raw);
       const payload = parseJwt(raw);
       setUserId(payload?.id ?? null);
+      // プロファイルからbranch_id取得
+      fetch(`${API_URL}/profiles`, {
+        headers: { Authorization: `Bearer ${raw}` },
+      })
+        .then(res => res.json())
+        .then(res => {
+          if (res.data && res.data.length > 0) setBranchId(res.data[0].branch_id || "");
+        });
     }
   }, []);
 
@@ -70,6 +85,60 @@ export default function UserItems() {
   return (
     <div style={{ maxWidth: 900, margin: "2rem auto" }}>
       <h2>在庫アイテム管理（一般ユーザー）</h2>
+      {/* 追加フォーム */}
+      <form onSubmit={async (e) => {
+        e.preventDefault();
+        setError("");
+        if (!name || !unit || !price || !stock || !threshold) {
+          setError("全項目必須です");
+          return;
+        }
+        if (!/^[0-9]{1,4}$/.test(price)) {
+          setError("金額は0〜9999の半角数字で入力してください");
+          return;
+        }
+        if (!Number.isInteger(Number(stock))) {
+          setError("在庫数は整数で入力してください");
+          return;
+        }
+        if (!Number.isInteger(Number(threshold))) {
+          setError("閾値は整数で入力してください");
+          return;
+        }
+        const res = await fetch(`${API_URL}/items`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+          body: JSON.stringify({
+            name,
+            unit,
+            price: Number(price),
+            stock: Number(stock),
+            threshold: Number(threshold),
+            user_id: userId,
+            branch_id: branchId,
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          setError(data.error || "追加失敗");
+        } else {
+          setName(""); setUnit(""); setPrice(""); setStock(""); setThreshold("");
+          setError("");
+          // 再取得
+          fetch(`${API_URL}/items`, {
+            headers: { Authorization: `Bearer ${token}` },
+          })
+            .then(res => res.json())
+            .then(res => setItems(res.data || []));
+        }
+      }} style={{ marginBottom: 24, display: 'flex', gap: 8, alignItems: 'center' }}>
+        <input placeholder="名称" value={name} onChange={e => setName(e.target.value)} />
+        <input placeholder="単位" value={unit} onChange={e => setUnit(e.target.value)} />
+        <input placeholder="金額" type="number" value={price} onChange={e => setPrice(e.target.value)} />
+        <input placeholder="在庫数" type="number" value={stock} onChange={e => setStock(e.target.value)} />
+        <input placeholder="閾値" type="number" value={threshold} onChange={e => setThreshold(e.target.value)} />
+        <button type="submit">追加</button>
+      </form>
       {error && <div style={{ color: "red" }}>{error}</div>}
       {stockAlert && <div style={{ color: 'orange', fontWeight: 'bold', marginBottom: 8 }}>{stockAlert}</div>}
       <table border={1} cellPadding={6} style={{ width: "100%", marginBottom: 24 }}>

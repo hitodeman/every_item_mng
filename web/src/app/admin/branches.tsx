@@ -29,8 +29,8 @@ export default function BranchesAdmin() {
     if (jwtPattern.test(raw)) {
       setToken(raw);
       const payload = parseJwt(raw);
-      if (payload?.role !== "admin") {
-        setRoleError("管理者のみアクセス可能です");
+      if (payload?.role !== "admin" && payload?.role !== "branch_admin") {
+        setRoleError("管理者または支店管理者のみアクセス可能です");
       }
     } else {
       localStorage.removeItem("jwt_token");
