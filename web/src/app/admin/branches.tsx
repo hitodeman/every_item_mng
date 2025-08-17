@@ -1,5 +1,10 @@
 "use client";
 import { useEffect, useState } from "react";
+import { Card, CardContent, CardHeader, CardTitle } from "./Card";
+import { Input } from "./Input";
+import { Button } from "./Button";
+import { Plus, Search } from "lucide-react";
+import { EditIcon, TrashIcon } from "./BranchCustomIcons";
 
 function parseJwt(token: string): any {
   try {
@@ -20,6 +25,9 @@ export default function BranchesAdmin() {
   const [editName, setEditName] = useState("");
   const [editAddress, setEditAddress] = useState("");
   const [roleError, setRoleError] = useState("");
+  // 検索用state
+  const [searchName, setSearchName] = useState("");
+  const [searchAddress, setSearchAddress] = useState("");
 
   // 認証トークンはlocalStorageから取得（仮実装）
   useEffect(() => {
@@ -111,66 +119,105 @@ export default function BranchesAdmin() {
   };
 
   if (roleError) {
-    return <div style={{ color: 'red', margin: '2rem' }}>{roleError}</div>;
+    return <div className="danger center mt-2">{roleError}</div>;
   }
   return (
-    <div style={{ maxWidth: 600, margin: "2rem auto" }}>
-      <h2>支店管理</h2>
-      <div style={{ marginBottom: 16 }}>
-        <input
-          placeholder="支店名"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-        />
-        <input
-          placeholder="住所"
-          value={address}
-          onChange={(e) => setAddress(e.target.value)}
-        />
-        <button onClick={handleAdd}>追加</button>
-      </div>
-      <table border={1} cellPadding={8} style={{ width: "100%" }}>
-        <thead>
-          <tr>
-            <th>支店名</th>
-            <th>住所</th>
-            <th>操作</th>
-          </tr>
-        </thead>
-        <tbody>
-          {branches.map((b: any) =>
-            editId === b.id ? (
-              <tr key={b.id}>
-                <td>
-                  <input
-                    value={editName}
-                    onChange={(e) => setEditName(e.target.value)}
-                  />
-                </td>
-                <td>
-                  <input
-                    value={editAddress}
-                    onChange={(e) => setEditAddress(e.target.value)}
-                  />
-                </td>
-                <td>
-                  <button onClick={handleEdit}>保存</button>
-                  <button onClick={() => setEditId(null)}>キャンセル</button>
-                </td>
-              </tr>
-            ) : (
-              <tr key={b.id}>
-                <td>{b.name}</td>
-                <td>{b.address}</td>
-                <td>
-                  <button onClick={() => startEdit(b)}>編集</button>
-                  <button onClick={() => handleDelete(b.id)}>削除</button>
-                </td>
-              </tr>
-            )
-          )}
-        </tbody>
-      </table>
+    <div className="card" style={{ maxWidth: 900, margin: '2rem auto' }}>
+      <CardHeader>
+        <CardTitle>支店管理</CardTitle>
+        <div style={{ display: "flex", gap: 16, marginTop: 16 }}>
+          <div style={{ position: "relative", flex: 1 }}>
+            <Search style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "#888", width: 18, height: 18 }} />
+            <Input
+              placeholder="支店名で検索"
+              value={searchName}
+              onChange={e => setSearchName(e.target.value)}
+              style={{ paddingLeft: 36, width: "100%", color: '#222', background: '#fff', border: '1px solid #ccc', borderRadius: 6, fontSize: 16 }}
+            />
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent>
+        {/* 追加フォーム */}
+        <form className="flex mb-4" style={{ flexWrap: 'wrap', alignItems: 'flex-end', gap: 12 }} onSubmit={e => { e.preventDefault(); handleAdd(); }}>
+          <Input
+            placeholder="支店名"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            style={{ flex: '2 1 120px', color: '#222', background: '#fff', border: '1px solid #ccc', borderRadius: 6, fontSize: 16 }}
+          />
+          <Input
+            placeholder="住所"
+            value={address}
+            onChange={(e) => setAddress(e.target.value)}
+            style={{ flex: '3 1 200px', color: '#222', background: '#fff', border: '1px solid #ccc', borderRadius: 6, fontSize: 16 }}
+          />
+          <Button type="submit" style={{ minWidth: 80 }}>
+            <Plus size={16} style={{ marginRight: 4 }} />追加
+          </Button>
+        </form>
+        {/* テーブル */}
+        <table style={{ width: '100%' }}>
+          <thead>
+            <tr>
+              <th>支店名</th>
+              <th>住所</th>
+              <th colSpan={2} style={{ textAlign: 'center' }}>操作</th>
+            </tr>
+          </thead>
+          <tbody>
+            {branches
+              .filter((b: any) => b.name.includes(searchName))
+              .map((b: any) =>
+                editId === b.id ? (
+                  <tr key={b.id}>
+                    <td>
+                      <Input
+                        value={editName}
+                        onChange={(e) => setEditName(e.target.value)}
+                        style={{ color: '#222', background: '#fff', border: '1px solid #ccc', borderRadius: 6, fontSize: 16 }}
+                      />
+                    </td>
+                    <td>
+                      <Input
+                        value={editAddress}
+                        onChange={(e) => setEditAddress(e.target.value)}
+                        style={{ color: '#222', background: '#fff', border: '1px solid #ccc', borderRadius: 6, fontSize: 16 }}
+                      />
+                    </td>
+                    <td colSpan={2} className="flex" style={{ gap: 4, justifyContent: 'center' }}>
+                      <Button onClick={handleEdit} style={{ minWidth: 60 }}>保存</Button>
+                      <Button onClick={() => setEditId(null)} style={{ minWidth: 60, background: '#e5e7eb', color: '#222' }}>キャンセル</Button>
+                    </td>
+                  </tr>
+                ) : (
+                  <tr key={b.id}>
+                    <td>{b.name}</td>
+                    <td>{b.address}</td>
+                    <td colSpan={2} className="flex" style={{ gap: 8, justifyContent: 'center', minWidth: 100 }}>
+                      <Button
+                        onClick={() => startEdit(b)}
+                        className="rounded-lg w-10 h-10 flex items-center justify-center p-0 border-none"
+                        style={{ background: '#18181b', color: '#fff', border: 'none', height: 40, width: 40, borderRadius: 8, boxShadow: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24 }}
+                        aria-label="編集"
+                      >
+                        <EditIcon style={{ color: '#fff', display: 'block' }} />
+                      </Button>
+                      <Button
+                        onClick={() => handleDelete(b.id)}
+                        className="rounded-lg w-10 h-10 flex items-center justify-center p-0 border border-zinc-200"
+                        style={{ background: '#fff', color: '#e11d48', border: '1px solid #e5e7eb', height: 40, width: 40, borderRadius: 8, boxShadow: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24 }}
+                        aria-label="削除"
+                      >
+                        <TrashIcon style={{ color: '#e11d48', display: 'block' }} />
+                      </Button>
+                    </td>
+                  </tr>
+                )
+              )}
+          </tbody>
+        </table>
+      </CardContent>
     </div>
   );
 }

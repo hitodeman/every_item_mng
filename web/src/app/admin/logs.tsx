@@ -1,6 +1,9 @@
-"use client";
 
+"use client";
 import { useEffect, useState } from "react";
+import { Card, CardContent, CardHeader, CardTitle } from "./Card";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "./Table";
+import { Badge } from "./Badge";
 
 type OperationLog = {
   id: number;
@@ -16,6 +19,30 @@ type OperationLog = {
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
+const getRoleBadgeVariant = (role: string) => {
+  switch (role) {
+    case "admin": return "default";
+    case "branch_admin": return "secondary";
+    case "user": return "outline";
+    default: return "outline";
+  }
+};
+const getRoleLabel = (role: string) => {
+  switch (role) {
+    case "admin": return "管理者";
+    case "branch_admin": return "支店管理者";
+    case "user": return "ユーザー";
+    default: return role;
+  }
+};
+const getOperationLabel = (operation: string) => {
+  switch (operation) {
+    case "login": return "ログイン";
+    case "stock_change": return "在庫変更";
+    default: return operation;
+  }
+};
+
 export default function OperationLogsPage() {
   const [logs, setLogs] = useState<OperationLog[]>([]);
   const [loading, setLoading] = useState(true);
@@ -26,7 +53,7 @@ export default function OperationLogsPage() {
       setLoading(true);
       setError("");
       try {
-  const token = localStorage.getItem("jwt_token");
+        const token = localStorage.getItem("jwt_token");
         const res = await fetch(`${API_URL}/operation-logs?limit=100`, {
           headers: { Authorization: `Bearer ${token}` },
         });
@@ -48,7 +75,7 @@ export default function OperationLogsPage() {
 
   const handleDownloadCSV = async () => {
     try {
-  const token = localStorage.getItem("jwt_token");
+      const token = localStorage.getItem("jwt_token");
       const res = await fetch(`${API_URL}/operation-logs/export`, {
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -72,47 +99,66 @@ export default function OperationLogsPage() {
   };
 
   return (
-    <div style={{ padding: 24 }}>
-      <h1>操作ログ一覧</h1>
-      <button onClick={handleDownloadCSV} style={{ marginBottom: 16 }}>CSVダウンロード</button>
-      {loading ? (
-        <p>読み込み中...</p>
-      ) : error ? (
-        <p style={{ color: "red" }}>{error}</p>
-      ) : (
-        <div style={{ overflowX: "auto" }}>
-          <table border={1} cellPadding={4} style={{ minWidth: 900 }}>
-            <thead>
-              <tr>
-                <th>ID</th>
-                <th>ユーザーID</th>
-                <th>ユーザー名</th>
-                <th>ロール</th>
-                <th>操作</th>
-                <th>対象種別</th>
-                <th>対象ID</th>
-                <th>詳細</th>
-                <th>日時</th>
-              </tr>
-            </thead>
-            <tbody>
-              {logs.map((log: OperationLog) => (
-                <tr key={log.id}>
-                  <td>{log.id}</td>
-                  <td>{log.user_id}</td>
-                  <td>{log.username}</td>
-                  <td>{log.role}</td>
-                  <td>{log.operation}</td>
-                  <td>{log.target_type}</td>
-                  <td>{log.target_id}</td>
-                  <td style={{ maxWidth: 300, wordBreak: "break-all" }}>{log.detail}</td>
-                  <td>{log.created_at && new Date(log.created_at).toLocaleString()}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-    </div>
+    <Card className="w-full" style={{ margin: 24 }}>
+      <CardHeader>
+        <CardTitle>操作ログ一覧</CardTitle>
+        <button
+          onClick={handleDownloadCSV}
+          style={{ marginTop: 8, marginBottom: 8, padding: "6px 16px", borderRadius: 6, background: "var(--primary)", color: "#fff", border: "none", fontWeight: 500, fontSize: 14, cursor: "pointer" }}
+        >
+          CSVダウンロード
+        </button>
+      </CardHeader>
+      <CardContent>
+        {loading ? (
+          <p>読み込み中...</p>
+        ) : error ? (
+          <p style={{ color: "red" }}>{error}</p>
+        ) : (
+          <div className="rounded-md border" style={{ overflowX: "auto" }}>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-12">ID</TableHead>
+                  <TableHead>ユーザーID</TableHead>
+                  <TableHead>ユーザー名</TableHead>
+                  <TableHead>ロール</TableHead>
+                  <TableHead>操作</TableHead>
+                  <TableHead>対象種別</TableHead>
+                  <TableHead>対象ID</TableHead>
+                  <TableHead>詳細</TableHead>
+                  <TableHead>日時</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {logs.map((log) => (
+                  <TableRow key={log.id}>
+                    <TableCell>{log.id}</TableCell>
+                    <TableCell className="font-mono max-w-32 truncate">
+                      <span title={log.user_id}>{log.user_id}</span>
+                    </TableCell>
+                    <TableCell>{log.username}</TableCell>
+                    <TableCell>
+                      <Badge variant={getRoleBadgeVariant(log.role)}>
+                        {getRoleLabel(log.role)}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>{getOperationLabel(log.operation)}</TableCell>
+                    <TableCell>{log.target_type}</TableCell>
+                    <TableCell>{log.target_id}</TableCell>
+                    <TableCell className="max-w-48 truncate">
+                      <span title={log.detail || undefined || ""}>{log.detail}</span>
+                    </TableCell>
+                    <TableCell className="font-mono whitespace-nowrap">
+                      {log.created_at && new Date(log.created_at).toLocaleString()}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }

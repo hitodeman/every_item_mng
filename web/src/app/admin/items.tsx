@@ -1,5 +1,7 @@
 "use client";
 import React, { useEffect, useState } from "react";
+import { EditIcon, TrashIcon } from "./CustomIcons";
+import { Table, TableHeader, TableBody, TableRow, TableHead, TableCell } from "./Table";
 // JWTデコード用
 function parseJwt(token: string): any {
   try {
@@ -24,6 +26,17 @@ type Item = {
 
 export default function ItemsAdmin() {
   const [branchId, setBranchId] = useState("");
+  const [token, setToken] = useState("");
+  const [users, setUsers] = useState<{ id: string; userName: string }[]>([]);
+  // ユーザー一覧取得
+  useEffect(() => {
+    if (!token) return;
+    fetch(`${API_URL}/users`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then(res => res.json())
+      .then(res => setUsers(res.data || []));
+  }, [token]);
   // ロールチェック: admin以外はアクセス不可
   const [roleError, setRoleError] = useState("");
   useEffect(() => {
@@ -47,9 +60,7 @@ export default function ItemsAdmin() {
   const [editPrice, setEditPrice] = useState("");
   const [editStock, setEditStock] = useState("");
   const [editThreshold, setEditThreshold] = useState("");
-  const [userIdInput, setUserIdInput] = useState("");
-  const [editUserId, setEditUserId] = useState("");
-  const [token, setToken] = useState("");
+  // userIdInput, editUserIdは不要
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [userId, setUserId] = useState<string | null>(null);
@@ -98,8 +109,8 @@ export default function ItemsAdmin() {
     e.preventDefault();
     setError("");
     setSuccess("");
-    if (!name || !unit || !price || !stock || !threshold || !userIdInput) {
-      setError("全項目必須です（user_idも必須）");
+    if (!name || !unit || !price || !stock || !threshold) {
+      setError("全項目必須です");
       return;
     }
     // 金額バリデーション
@@ -129,7 +140,7 @@ export default function ItemsAdmin() {
         price: Number(price),
         stock: Number(stock),
         threshold: Number(threshold),
-        user_id: userIdInput,
+        user_id: userId, // ログインユーザーIDを利用
         branch_id: branchId,
       }),
     });
@@ -149,7 +160,7 @@ export default function ItemsAdmin() {
     setEditPrice(String(item.price));
     setEditStock(String(item.stock));
     setEditThreshold(String(item.threshold));
-    setEditUserId(item.user_id || "");
+  // setEditUserId不要
   };
 
   const handleUpdate = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -187,6 +198,7 @@ export default function ItemsAdmin() {
         price: Number(editPrice),
         stock: Number(editStock),
         threshold: Number(editThreshold),
+        user_id: userId, // ログインユーザーIDを利用
       }),
     });
     const data = await res.json();
@@ -216,117 +228,201 @@ export default function ItemsAdmin() {
   };
 
   if (roleError) {
-    return <div style={{ color: 'red', margin: '2rem' }}>{roleError}</div>;
+    return <div className="danger center mt-2">{roleError}</div>;
   }
   return (
-    <div style={{ maxWidth: 900, margin: "2rem auto" }}>
-      <h2>在庫アイテム管理</h2>
-      {error && <div style={{ color: "red" }}>{error}</div>}
-      {success && <div style={{ color: "green" }}>{success}</div>}
-      <form onSubmit={editId ? handleUpdate : handleAdd} style={{ marginBottom: 24 }}>
-    {stockAlert && <div style={{ color: 'orange', fontWeight: 'bold', marginBottom: 8 }}>{stockAlert}</div>}
-        <input placeholder="名称" value={editId ? editName : name} onChange={e => editId ? setEditName(e.target.value) : setName(e.target.value)} />
-        <input placeholder="単位" value={editId ? editUnit : unit} onChange={e => editId ? setEditUnit(e.target.value) : setUnit(e.target.value)} />
-        <input placeholder="金額" type="number" value={editId ? editPrice : price} onChange={e => editId ? setEditPrice(e.target.value) : setPrice(e.target.value)} />
-        <input placeholder="在庫数" type="number" value={editId ? editStock : stock} onChange={e => editId ? setEditStock(e.target.value) : setStock(e.target.value)} />
-        <input placeholder="閾値" type="number" value={editId ? editThreshold : threshold} onChange={e => editId ? setEditThreshold(e.target.value) : setThreshold(e.target.value)} />
-        <input placeholder="user_id (uuid)" value={editId ? editUserId : userIdInput} onChange={e => editId ? setEditUserId(e.target.value) : setUserIdInput(e.target.value)} />
-        <button type="submit">{editId ? "更新" : "追加"}</button>
-        {editId && <button type="button" onClick={() => setEditId(null)}>キャンセル</button>}
+    <div className="card" style={{ maxWidth: 1200, margin: "2rem auto", padding: 24 }}>
+      <h2 style={{ marginBottom: '1.5rem' }}>在庫アイテム管理</h2>
+      {error && <div className="danger mb-2">{error}</div>}
+      {success && <div className="mb-2" style={{ color: '#16a34a' }}>{success}</div>}
+      <form onSubmit={editId ? handleUpdate : handleAdd} className="flex mb-2" style={{ flexWrap: 'wrap', alignItems: 'flex-end' }}>
+        {stockAlert && <div className="mb-2" style={{ color: '#f59e42', fontWeight: 'bold', width: '100%' }}>{stockAlert}</div>}
+        <div style={{ display: 'flex', gap: 8, width: '100%' }}>
+          <div style={{ flex: '1 1 120px', display: 'flex', flexDirection: 'column' }}>
+            {editId && <label style={{ fontSize: 12, color: '#64748b', marginBottom: 2 }}>名称</label>}
+            <input placeholder="名称" value={editId ? editName : name} onChange={e => editId ? setEditName(e.target.value) : setName(e.target.value)} style={{ color: '#222', background: '#fff' }} />
+          </div>
+          <div style={{ flex: '1 1 80px', display: 'flex', flexDirection: 'column' }}>
+            {editId && <label style={{ fontSize: 12, color: '#64748b', marginBottom: 2 }}>単位</label>}
+            <input placeholder="単位" value={editId ? editUnit : unit} onChange={e => editId ? setEditUnit(e.target.value) : setUnit(e.target.value)} style={{ color: '#222', background: '#fff' }} />
+          </div>
+          <div style={{ flex: '1 1 80px', display: 'flex', flexDirection: 'column' }}>
+            {editId && <label style={{ fontSize: 12, color: '#64748b', marginBottom: 2 }}>金額</label>}
+            <input placeholder="金額" type="number" value={editId ? editPrice : price} onChange={e => editId ? setEditPrice(e.target.value) : setPrice(e.target.value)} style={{ color: '#222', background: '#fff' }} />
+          </div>
+          <div style={{ flex: '1 1 80px', display: 'flex', flexDirection: 'column' }}>
+            {editId && <label style={{ fontSize: 12, color: '#64748b', marginBottom: 2 }}>在庫数</label>}
+            <input
+              placeholder="在庫数"
+              type="number"
+              value={editId ? editStock : stock}
+              onChange={e => editId ? setEditStock(e.target.value) : setStock(e.target.value)}
+              style={{ color: '#222', background: '#fff' }}
+              disabled={!!editId}
+            />
+          </div>
+          <div style={{ flex: '1 1 80px', display: 'flex', flexDirection: 'column' }}>
+            {editId && <label style={{ fontSize: 12, color: '#64748b', marginBottom: 2 }}>閾値</label>}
+            <input placeholder="閾値" type="number" value={editId ? editThreshold : threshold} onChange={e => editId ? setEditThreshold(e.target.value) : setThreshold(e.target.value)} style={{ color: '#222', background: '#fff' }} />
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
+            <button type="submit" style={{ minWidth: 80 }}>{editId ? "更新" : "追加"}</button>
+          </div>
+          {editId && (
+            <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
+              <button type="button" onClick={() => setEditId(null)} style={{ minWidth: 80, background: '#e5e7eb', color: '#222' }}>キャンセル</button>
+            </div>
+          )}
+        </div>
       </form>
-      <table border={1} cellPadding={8} style={{ width: "100%" }}>
-        <thead>
-          <tr>
-            <th>ID</th><th>名称</th><th>単位</th><th>金額</th><th>在庫数</th><th>閾値</th><th>操作</th><th>在庫数増減</th><th>履歴</th>
-          </tr>
-        </thead>
-        <tbody>
-          {items.map((item: Item) => (
-            <tr key={item.id}>
-              <td>{item.id}</td>
-              <td>{item.name}</td>
-              <td>{item.unit}</td>
-              <td>{item.price}</td>
-              <td>{item.stock}</td>
-              <td>{item.threshold}</td>
-              <td>
-                <button onClick={() => handleEdit(item)}>編集</button>
-                <button onClick={() => handleDelete(item.id)}>削除</button>
-              </td>
-              <td>
-                {stockEditId === item.id ? (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                    <input type="number" placeholder="増減数(例:+5,-3)" value={stockChange} onChange={e => setStockChange(e.target.value)} style={{ width: 80 }} />
-                    <input type="text" placeholder="理由(任意)" value={stockReason} onChange={e => setStockReason(e.target.value)} style={{ width: 120 }} />
-                    <div style={{ display: 'flex', gap: 4 }}>
-                      <button onClick={async () => {
-                        setError(""); setSuccess("");
-                        const n = Number(stockChange);
-                        if (!Number.isInteger(n) || n === 0) { setError("増減数は非ゼロの整数で"); return; }
-                        const res = await fetch(`${API_URL}/items/${item.id}/stock`, {
-                          method: "POST",
-                          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-                          body: JSON.stringify({ change: n, reason: stockReason })
-                        });
-                        const data = await res.json();
-                        if (!res.ok) {
-                          setError(data.error || "在庫増減失敗");
-                          setStockAlert("");
-                        } else {
-                          if (data.alert) {
-                            setStockAlert(data.alert_message || "在庫数が閾値を下回りました");
-                            setSuccess(""); // 成功メッセージは消す
-                          } else {
-                            setStockAlert("");
-                            setSuccess("在庫増減成功");
-                          }
-                          setStockEditId(null); setStockChange(""); setStockReason("");
-                        }
-                      }}>確定</button>
-                      <button onClick={() => { setStockEditId(null); setStockChange(""); setStockReason(""); }}>キャンセル</button>
+      <div className="rounded-md border">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead>ID</TableHead>
+              <TableHead className="min-w-[150px] w-[170px] max-w-[250px]">名称</TableHead>
+              <TableHead className="min-w-[30px] w-[30px] max-w-[30px]">単位</TableHead>
+              <TableHead>金額</TableHead>
+              <TableHead className="min-w-[200px] w-[200px] max-w-[200px]">在庫数</TableHead>
+              <TableHead className="min-w-[30px] w-[30px] max-w-[30px]">閾値</TableHead>
+              <TableHead>操作</TableHead>
+              <TableHead className="min-w-[150px] w-[150px] max-w-[150px]">在庫数変更</TableHead>
+              <TableHead className="min-w-[100px] w-[100px] max-w-[100px]">履歴</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {items.map((item: Item) => {
+              const priceStr = `¥${item.price.toLocaleString()}`;
+              const isLow = item.stock <= item.threshold;
+              const badgeStyle = isLow
+                ? { background: '#fee2e2', color: '#b91c1c', borderRadius: '6px', fontSize: '12px', padding: '2px 8px', display: 'inline-flex', alignItems: 'center', fontWeight: 500, marginLeft: 8 }
+                : { background: '#f1f5f9', color: '#334155', borderRadius: '6px', fontSize: '12px', padding: '2px 8px', display: 'inline-flex', alignItems: 'center', fontWeight: 500, marginLeft: 8 };
+              return (
+                <TableRow key={item.id}>
+                  <TableCell>{item.id}</TableCell>
+                  <TableCell>{item.name}</TableCell>
+                  <TableCell style={{ minWidth: 100, width: 100, maxWidth: 120 }}>{item.unit}</TableCell>
+                  <TableCell>{priceStr}</TableCell>
+                  <TableCell style={{ minWidth: 120, width: 120, maxWidth: 150 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                      {item.stock != null ? item.stock.toLocaleString() : "-"}
+                      <span style={badgeStyle}>
+                        {isLow ? (
+                          <svg width="14" height="14" viewBox="0 0 20 20" fill="none" style={{marginRight:4}}><path d="M10 15V5M10 5L6 9M10 5l4 4" stroke="#b91c1c" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                        ) : (
+                          <svg width="14" height="14" viewBox="0 0 20 20" fill="none" style={{marginRight:4}}><path d="M10 5v10m0 0l4-4m-4 4l-4-4" stroke="#334155" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                        )}
+                        {isLow ? '不足' : '充分'}
+                      </span>
                     </div>
-                  </div>
-                ) : (
-                  <button onClick={() => { setStockEditId(item.id); setStockChange(""); setStockReason(""); }}>在庫数増減</button>
-                )}
-              </td>
-              <td>
-                <button onClick={async () => {
-                  setHistoryId(item.id); setHistoryLoading(true); setHistory([]);
-                  const res = await fetch(`${API_URL}/items/${item.id}/history`, { headers: { Authorization: `Bearer ${token}` } });
-                  const data = await res.json();
-                  setHistory(data.data || []); setHistoryLoading(false);
-                }}>履歴</button>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+                  </TableCell>
+                  <TableCell style={{ minWidth: 100, width: 100, maxWidth: 120 }}>{item.threshold}</TableCell>
+                  <TableCell className="flex" style={{ minWidth: 50, gap: 4 }}>
+                    <button
+                      onClick={() => handleEdit(item)}
+                      style={{
+                        background: '#f1f5f9',
+                        color: '#334155',
+                        border: '1px solid #e5e7eb',
+                        borderRadius: 8,
+                        width: 40,
+                        height: 40,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        padding: 0,
+                        boxShadow: 'none',
+                        cursor: 'pointer',
+                      }}
+                      aria-label="編集"
+                    >
+                      <EditIcon style={{ width: 22, height: 22, color: '#334155', display: 'block' }} />
+                    </button>
+                  </TableCell>
+                  <TableCell>
+                    {stockEditId === item.id ? (
+                      <div className="flex" style={{ flexDirection: 'column', gap: 4 }}>
+                        <input type="number" placeholder="増減数(例:+5,-3)" value={stockChange} onChange={e => setStockChange(e.target.value)} style={{ width: 80, color: '#222', background: '#fff' }} />
+                        <input type="text" placeholder="理由(任意)" value={stockReason} onChange={e => setStockReason(e.target.value)} style={{ width: 120, color: '#222', background: '#fff' }} />
+                        <div className="flex" style={{ gap: 4 }}>
+                          <button onClick={async () => {
+                            setError(""); setSuccess("");
+                            const n = Number(stockChange);
+                            if (!Number.isInteger(n) || n === 0) { setError("増減数は非ゼロの整数で"); return; }
+                            const res = await fetch(`${API_URL}/items/${item.id}/stock`, {
+                              method: "POST",
+                              headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+                              body: JSON.stringify({ change: n, reason: stockReason })
+                            });
+                            const data = await res.json();
+                            if (!res.ok) {
+                              setError(data.error || "在庫増減失敗");
+                              setStockAlert("");
+                            } else {
+                              if (data.alert) {
+                                setStockAlert(data.alert_message || "在庫数が閾値を下回りました");
+                                setSuccess("");
+                              } else {
+                                setStockAlert("");
+                                setSuccess("在庫増減成功");
+                              }
+                              setStockEditId(null); setStockChange(""); setStockReason("");
+                            }
+                          }}>確定</button>
+                          <button onClick={() => { setStockEditId(null); setStockChange(""); setStockReason(""); }} style={{ background: '#e5e7eb', color: '#222' }}>キャンセル</button>
+                        </div>
+                      </div>
+                    ) : (
+                      <button onClick={() => { setStockEditId(item.id); setStockChange(""); setStockReason(""); }} style={{ background: '#fff', color: '#222', border: '1px solid #e5e7eb', borderRadius: 8, minWidth: 90, height: 36, fontWeight: 500, cursor: 'pointer' }}>＋ / ー</button>
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    <button
+                      onClick={async () => {
+                        setHistoryId(item.id); setHistoryLoading(true); setHistory([]);
+                        const res = await fetch(`${API_URL}/items/${item.id}/history`, { headers: { Authorization: `Bearer ${token}` } });
+                        const data = await res.json();
+                        setHistory(data.data || []); setHistoryLoading(false);
+                      }}
+                      style={{ background: '#fff', color: '#222', border: '1px solid #e5e7eb', borderRadius: 8, minWidth: 60, height: 36, fontWeight: 500, cursor: 'pointer' }}
+                    >
+                      履歴
+                    </button>
+                  </TableCell>
+                </TableRow>
+              );
+            })}
+          </TableBody>
+        </Table>
+      </div>
       {/* 履歴モーダル */}
       {historyId && (
         <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', background: '#0008', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={() => setHistoryId(null)}>
-          <div style={{ background: '#fff', padding: 24, minWidth: 400, maxHeight: 500, overflow: 'auto' }} onClick={e => e.stopPropagation()}>
+          <div className="card" style={{ background: '#fff', minWidth: 400, maxHeight: 500, overflow: 'auto' }} onClick={e => e.stopPropagation()}>
             <h3>在庫増減履歴 (item_id: {historyId})</h3>
             {historyLoading ? <div>読込中...</div> : (
-              <table border={1} cellPadding={4} style={{ width: '100%' }}>
+              <table>
                 <thead>
-                  <tr><th>日時</th><th>増減</th><th>前</th><th>後</th><th>理由</th><th>user_id</th></tr>
+                  <tr><th>日時</th><th>増減</th><th>前</th><th>後</th><th>理由</th><th>ユーザー</th></tr>
                 </thead>
                 <tbody>
-                  {history.length === 0 ? <tr><td colSpan={6}>履歴なし</td></tr> : history.map(h => (
-                    <tr key={h.id}>
-                      <td>{h.created_at?.replace('T', ' ').slice(0, 19)}</td>
-                      <td>{h.change > 0 ? `+${h.change}` : h.change}</td>
-                      <td>{h.before_stock}</td>
-                      <td>{h.after_stock}</td>
-                      <td>{h.reason || ''}</td>
-                      <td>{h.user_id}</td>
-                    </tr>
-                  ))}
+                  {history.length === 0 ? <tr><td colSpan={6}>履歴なし</td></tr> : history.map(h => {
+                    const user = users.find(u => u.id === h.user_id);
+                    return (
+                      <tr key={h.id}>
+                        <td>{h.created_at?.replace('T', ' ').slice(0, 19)}</td>
+                        <td>{h.change > 0 ? `+${h.change}` : h.change}</td>
+                        <td>{h.before_stock}</td>
+                        <td>{h.after_stock}</td>
+                        <td>{h.reason || ''}</td>
+                        <td>{user ? user.userName : h.user_id}</td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             )}
-            <button onClick={() => setHistoryId(null)} style={{ marginTop: 12 }}>閉じる</button>
+            <button onClick={() => setHistoryId(null)} className="mt-2">閉じる</button>
           </div>
         </div>
       )}

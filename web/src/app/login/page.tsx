@@ -48,6 +48,7 @@ export default function LoginPage() {
             value={username}
             onChange={(e) => setUsername(e.target.value)}
             required
+            style={{ color: '#222', background: '#fff', border: '1px solid #ccc', borderRadius: 6, padding: '10px 12px', width: '100%', fontSize: 16 }}
           />
         </div>
         <div style={{ marginBottom: 12 }}>
@@ -57,6 +58,7 @@ export default function LoginPage() {
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             required
+            style={{ color: '#222', background: '#fff', border: '1px solid #ccc', borderRadius: 6, padding: '10px 12px', width: '100%', fontSize: 16 }}
           />
         </div>
         <button type="submit">ログイン</button>

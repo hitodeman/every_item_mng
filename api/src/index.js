@@ -344,9 +344,35 @@ app.get('/operation-logs/export', authenticateToken, authorizeRole(['admin', 'us
 // GET /items/:id/history
 app.get('/items/:id/history', authenticateToken, async (req, res) => {
   const { id } = req.params;
-  const { data, error } = await supabase.from('items_history').select('*').eq('item_id', id).order('created_at', { ascending: false });
-  if (error) return res.status(500).json({ error: error.message });
-  res.json({ data });
+  // サーバー側でuser_id→ユーザー名へマッピングして返す
+  // 1. 履歴データ取得
+  const { data: history, error: historyError } = await supabase
+    .from('items_history')
+    .select('*')
+    .eq('item_id', id)
+    .order('created_at', { ascending: false });
+  if (historyError) return res.status(500).json({ error: historyError.message });
+  // 2. 全ユーザー取得（name, username両方取得。usernameが無い場合も考慮）
+  let profiles = [], profilesError = null;
+  try {
+    const resProfiles = await supabase.from('profiles').select('id, name, username');
+    profiles = resProfiles.data || [];
+    profilesError = resProfiles.error;
+  } catch (e) {
+    profiles = [];
+    profilesError = e;
+  }
+  // id→name/usernameマッピング
+  const idToUser = Object.fromEntries((profiles || []).map(p => [p.id, { name: p.name, username: p.username }]));
+  // 3. user_id→name→username→user_idの順でuser_nameを決定
+  const result = (history || []).map(row => {
+    const user = idToUser[row.user_id];
+    return {
+      ...row,
+      user_name: (user && user.name) ? user.name : (user && user.username) ? user.username : row.user_id
+    };
+  });
+  res.json({ data: result });
 });
 
 
