@@ -1,2 +1,24 @@
+# --- 共通 ---
+node_modules/
+pnpm-lock.yaml
+package-lock.json
+.env.local
+
+# --- Next.js/Web ---
+web/.next/
+web/node_modules/
+web/.modules.yaml
+web/.pnpm/
+web/.pnpm-workspace-state-v1.json
+
+# --- API ---
+api/node_modules/
+api/.modules.yaml
+api/.pnpm/
+api/.pnpm-workspace-state-v1.json
+
+# --- その他 ---
+.vscode/
 doc/
 .env
+node_modules

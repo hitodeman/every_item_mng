@@ -3,7 +3,21 @@
 		"github": {
 			"url": "https://api.githubcopilot.com/mcp/",
 			"type": "http"
-		}
+		},
+		"supabase": {
+      "command": "npx",
+      "args": ["-y", "@supabase/mcp-server-supabase@latest"],
+      "env": {
+        "SUPABASE_ACCESS_TOKEN": "${input:supabase-access-token}"
+      }
+    }
 	},
-	"inputs": []
+	"inputs": [
+    {
+      "type": "promptString",
+      "id": "supabase-access-token",
+      "description": "Supabase personal access token",
+      "password": true
+    }
+  ],
 }
