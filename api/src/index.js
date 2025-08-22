@@ -355,21 +355,21 @@ app.get('/items/:id/history', authenticateToken, async (req, res) => {
   // 2. 全ユーザー取得（name, username両方取得。usernameが無い場合も考慮）
   let profiles = [], profilesError = null;
   try {
-    const resProfiles = await supabase.from('profiles').select('id, name, username');
+    const resProfiles = await supabase.from('profiles').select('id, name');
     profiles = resProfiles.data || [];
     profilesError = resProfiles.error;
   } catch (e) {
     profiles = [];
     profilesError = e;
   }
-  // id→name/usernameマッピング
-  const idToUser = Object.fromEntries((profiles || []).map(p => [p.id, { name: p.name, username: p.username }]));
+  // id→nameマッピング
+  const idToUser = Object.fromEntries((profiles || []).map(p => [p.id, { name: p.name }]));
   // 3. user_id→name→username→user_idの順でuser_nameを決定
   const result = (history || []).map(row => {
     const user = idToUser[row.user_id];
     return {
       ...row,
-      user_name: (user && user.name) ? user.name : (user && user.username) ? user.username : row.user_id
+      user_name: (user && user.name) ? user.name : row.user_id
     };
   });
   res.json({ data: result });

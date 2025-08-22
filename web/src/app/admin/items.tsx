@@ -27,16 +27,6 @@ type Item = {
 export default function ItemsAdmin() {
   const [branchId, setBranchId] = useState("");
   const [token, setToken] = useState("");
-  const [users, setUsers] = useState<{ id: string; userName: string }[]>([]);
-  // ユーザー一覧取得
-  useEffect(() => {
-    if (!token) return;
-    fetch(`${API_URL}/users`, {
-      headers: { Authorization: `Bearer ${token}` },
-    })
-      .then(res => res.json())
-      .then(res => setUsers(res.data || []));
-  }, [token]);
   // ロールチェック: admin以外はアクセス不可
   const [roleError, setRoleError] = useState("");
   useEffect(() => {
@@ -71,6 +61,7 @@ export default function ItemsAdmin() {
   const [stockAlert, setStockAlert] = useState<string>("");
   // 履歴表示用
   const [historyId, setHistoryId] = useState<number | null>(null);
+  const [historyName, setHistoryName] = useState("");
   const [history, setHistory] = useState<any[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
 
@@ -379,7 +370,7 @@ export default function ItemsAdmin() {
                   <TableCell>
                     <button
                       onClick={async () => {
-                        setHistoryId(item.id); setHistoryLoading(true); setHistory([]);
+                        setHistoryId(item.id); setHistoryName(item.name);setHistoryLoading(true); setHistory([]);
                         const res = await fetch(`${API_URL}/items/${item.id}/history`, { headers: { Authorization: `Bearer ${token}` } });
                         const data = await res.json();
                         setHistory(data.data || []); setHistoryLoading(false);
@@ -399,7 +390,7 @@ export default function ItemsAdmin() {
       {historyId && (
         <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', background: '#0008', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={() => setHistoryId(null)}>
           <div className="card" style={{ background: '#fff', minWidth: 400, maxHeight: 500, overflow: 'auto' }} onClick={e => e.stopPropagation()}>
-            <h3>在庫増減履歴 (item_id: {historyId})</h3>
+            <h3>在庫増減履歴 (名称: {historyName})</h3>
             {historyLoading ? <div>読込中...</div> : (
               <table>
                 <thead>
@@ -407,15 +398,14 @@ export default function ItemsAdmin() {
                 </thead>
                 <tbody>
                   {history.length === 0 ? <tr><td colSpan={6}>履歴なし</td></tr> : history.map(h => {
-                    const user = users.find(u => u.id === h.user_id);
                     return (
                       <tr key={h.id}>
-                        <td>{h.created_at?.replace('T', ' ').slice(0, 19)}</td>
+                        <td>{h.created_at && new Date(h.created_at).toLocaleString()}</td>
                         <td>{h.change > 0 ? `+${h.change}` : h.change}</td>
                         <td>{h.before_stock}</td>
                         <td>{h.after_stock}</td>
                         <td>{h.reason || ''}</td>
-                        <td>{user ? user.userName : h.user_id}</td>
+                        <td>{h.user_name ?? h.user_id}</td>
                       </tr>
                     );
                   })}

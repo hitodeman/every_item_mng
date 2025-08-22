@@ -125,9 +125,9 @@ export default function BranchesAdmin() {
     <div className="card" style={{ maxWidth: 900, margin: '2rem auto' }}>
       <CardHeader>
         <CardTitle>支店管理</CardTitle>
-        <div style={{ display: "flex", gap: 16, marginTop: 16 }}>
+        <div style={{ display: "flex"}}>
           <div style={{ position: "relative", flex: 1 }}>
-            <Search style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "#888", width: 18, height: 18 }} />
+            <Search style={{ position: "absolute", left: 12, top: "40%", transform: "translateY(-50%)", color: "#888", width: 18, height: 18 }} />
             <Input
               placeholder="支店名で検索"
               value={searchName}
@@ -198,18 +198,44 @@ export default function BranchesAdmin() {
                       <Button
                         onClick={() => startEdit(b)}
                         className="rounded-lg w-10 h-10 flex items-center justify-center p-0 border-none"
-                        style={{ background: '#18181b', color: '#fff', border: 'none', height: 40, width: 40, borderRadius: 8, boxShadow: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24 }}
+                        style={{
+                        background: '#f1f5f9',
+                        color: '#334155',
+                        border: '1px solid #e5e7eb',
+                        borderRadius: 8,
+                        width: 40,
+                        height: 40,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        padding: 0,
+                        boxShadow: 'none',
+                        cursor: 'pointer',
+                      }}
                         aria-label="編集"
                       >
-                        <EditIcon style={{ color: '#fff', display: 'block' }} />
+                        <EditIcon style={{ width: 22, height: 22, color: '#334155', display: 'block' }} />
                       </Button>
                       <Button
                         onClick={() => handleDelete(b.id)}
                         className="rounded-lg w-10 h-10 flex items-center justify-center p-0 border border-zinc-200"
-                        style={{ background: '#fff', color: '#e11d48', border: '1px solid #e5e7eb', height: 40, width: 40, borderRadius: 8, boxShadow: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 24 }}
+                        style={{
+                        background: '#f1f5f9',
+                        color: '#334155',
+                        border: '1px solid #e5e7eb',
+                        borderRadius: 8,
+                        width: 40,
+                        height: 40,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        padding: 0,
+                        boxShadow: 'none',
+                        cursor: 'pointer',
+                      }}
                         aria-label="削除"
                       >
-                        <TrashIcon style={{ color: '#e11d48', display: 'block' }} />
+                        <TrashIcon style={{ width: 22, height: 22, color: '#e11d48', display: 'block' }} />
                       </Button>
                     </td>
                   </tr>

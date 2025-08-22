@@ -28,6 +28,7 @@ tr:hover {
   --popover-foreground: oklch(0.145 0 0);
   --primary: #030213;
   --primary-foreground: oklch(1 0 0);
+  --primary-hover: oklch(74.373% 0.09343 19.469);
   --secondary: oklch(0.95 0.0058 264.53);
   --secondary-foreground: #030213;
   --muted: #ececf0;

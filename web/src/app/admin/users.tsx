@@ -1,5 +1,14 @@
 "use client";
-import * as React from "react";
+import React, { useEffect, useState } from "react";
+
+// User型を定義
+type User = {
+  id: string;
+  name: string;
+  role: string;
+  branch_id?: string;
+  branchName?: string;
+};
 import { Card, CardContent, CardHeader, CardTitle } from "./Card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "./Table";
 import { Button } from "./Button";
@@ -8,6 +17,16 @@ import { Label } from "./Label";
 import { Plus, Search } from "lucide-react";
 import { EditIcon, TrashIcon } from "./CustomIcons";
 import { Badge } from "./Badge";
+// JWTデコード用
+function parseJwt(token: string): any {
+  try {
+    return JSON.parse(atob(token.split('.')[1]));
+  } catch {
+    return null;
+  }
+}
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
 
 function getRoleBadgeClass(role: string) {
   switch (role) {
@@ -27,22 +46,55 @@ function getRoleLabel(role: string) {
 }
 
 export default function UsersAdmin() {
-  // TODO: API連携・state管理は既存profiles.tsxを参考に移植
-  // ここではUIのみFigma準拠で作成
-  const [searchTerm, setSearchTerm] = React.useState("");
-  const [roleFilter, setRoleFilter] = React.useState("all");
-  // 仮データ
-  // 仮データに在庫数(stock)を追加
-  const users = [
-    { id: "1fcabda7-528b-4f20-aa73-957da5a677e4", userName: "管理者", role: "admin", branchId: "2bb58a5-aa7f-41bb-a653-ea4200fc31b8", branchName: "本店", stock: 1234 },
-    { id: "880aeac52-36ce-47e4-84aa-bdaa00c99375", userName: "支店管理者", role: "branch_admin", branchId: "83ee7e4c-8f9a-4d63-9dfb-ff0b2698c1f", branchName: "東京支店", stock: 56789 },
-    { id: "9002e7af-30ad-4f8e-a391-fb265ceaf8", userName: "一般ユーザー", role: "user", branchId: "83ee7e4c-8f9a-4d63-9dfb-ff0b2698c1f", branchName: "東京支店", stock: 42 },
-  ];
+  const [searchTerm, setSearchTerm] = useState("");
+  const [token, setToken] = useState("");
+  const [roleFilter, setRoleFilter] = useState("all");
+  const [users, setUsers] = useState<User[]>([]); // User[]型で初期化
+  const [userId, setUserId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const raw = localStorage.getItem("jwt_token") || "";
+    const jwtPattern = /^[A-Za-z0-9-_]+\.[A-Za-z0-9-_]+\.[A-Za-z0-9-_]+$/;
+    if (jwtPattern.test(raw)) {
+      setToken(raw);
+      const payload = parseJwt(raw);
+      setUserId(payload?.id ?? null);
+      // ユーザーとブランチ情報を同時取得
+      Promise.all([
+        fetch(`${API_URL}/profiles`, {
+          headers: { Authorization: `Bearer ${raw}` },
+        }).then(res => res.json()),
+        fetch(`${API_URL}/branches`, {
+          headers: { Authorization: `Bearer ${raw}` },
+        }).then(res => res.json())
+      ]).then(([profilesRes, branchesRes]) => {
+        const branches = Array.isArray(branchesRes.data) ? branchesRes.data : [];
+        const branchMap = new Map<string, string>();
+        branches.forEach((b: any) => {
+          branchMap.set(b.id, b.name);
+        });
+        if (Array.isArray(profilesRes.data)) {
+          const usersWithBranchName = profilesRes.data.map((user: any) => ({
+            ...user,
+            branchName: user.branch_id ? branchMap.get(user.branch_id) || "" : ""
+          }));
+          setUsers(usersWithBranchName);
+        } else {
+          setUsers([]);
+        }
+      });
+    } else {
+      localStorage.removeItem("jwt_token");
+      setToken("");
+      setUserId(null);
+    }
+  }, []);
   const filteredUsers = users.filter(user => {
-    const matchesSearch = user.userName.includes(searchTerm) || user.id.includes(searchTerm);
+    const matchesSearch = (user.name || "").includes(searchTerm) || (user.id || "").includes(searchTerm);
     const matchesRole = roleFilter === "all" || user.role === roleFilter;
     return matchesSearch && matchesRole;
   });
+  console.log("Filtered Users:", filteredUsers);
   return (
     <div className="card" style={{ maxWidth: 900, margin: "2rem auto" }}>
       <CardHeader>
@@ -65,11 +117,11 @@ export default function UsersAdmin() {
               <option value="branch_admin">支店管理者</option>
               <option value="admin">管理者</option>
             </select>
+
+            <Button type="submit" style={{ minWidth: 80, maxHeight: 35 }}>
+            <Plus size={16} style={{ marginRight: 4 }} />追加
+            </Button>
           </div>
-          <Button className="ml-auto bg-zinc-900 hover:bg-zinc-700 text-white px-6 h-10 flex items-center justify-center gap-2 rounded-lg shadow-none border-none !important" style={{background:'#18181b',color:'#fff',border:'none',height:40,padding:'0 1.5rem',borderRadius:8,boxShadow:'none',display:'flex',alignItems:'center',justifyContent:'center'}}>
-            <Plus className="w-6 h-6" />
-            <span style={{lineHeight:'1'}}>追加</span>
-          </Button>
         </div>
       </CardHeader>
       <CardContent>
@@ -88,7 +140,7 @@ export default function UsersAdmin() {
               {filteredUsers.map(user => (
                 <TableRow key={user.id}>
                   <TableCell className="font-mono text-sm max-w-48 truncate"><div title={user.id}>{user.id}</div></TableCell>
-                  <TableCell style={{ minWidth: 150, width: 150, maxWidth: 150, whiteSpace: 'nowrap' }}>{user.userName}</TableCell>
+                  <TableCell style={{ minWidth: 150, width: 150, maxWidth: 150, whiteSpace: 'nowrap' }}>{user.name}</TableCell>
                   <TableCell
                     style={{ minWidth: 150, width: 150, maxWidth: 150, whiteSpace: 'nowrap' }}
                   >
@@ -107,7 +159,6 @@ export default function UsersAdmin() {
                   </TableCell>
                   <TableCell>
                     <div>
-                      <div className="font-mono text-sm text-zinc-400 truncate max-w-32"><span title={user.branchId}>{user.branchId}</span></div>
                       <div className="text-sm">{user.branchName}</div>
                     </div>
                   </TableCell>
@@ -115,13 +166,41 @@ export default function UsersAdmin() {
                     <div className="flex gap-1 justify-end" style={{height:40,alignItems:'center'}}>
                       <Button
                         className="rounded-lg w-10 h-10 flex items-center justify-center p-0 border-none !important"
-                        style={{background:'#18181b',color:'#fff',border:'none',height:40,width:40,borderRadius:8,boxShadow:'none',display:'flex',alignItems:'center',justifyContent:'center',fontSize:24}}
+                        style={{
+                        background: '#f1f5f9',
+                        color: '#334155',
+                        border: '1px solid #e5e7eb',
+                        borderRadius: 8,
+                        width: 40,
+                        height: 40,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        padding: 0,
+                        boxShadow: 'none',
+                        cursor: 'pointer',
+                      }}
                         aria-label="編集"
                       >
-                        <EditIcon style={{color:'#fff',display:'block'}} />
+                        <EditIcon style={{ width: 22, height: 22, color: '#334155', display: 'block' }} />
                       </Button>
-                      <Button className="rounded-lg w-10 h-10 flex items-center justify-center p-0 border border-zinc-200 !important" style={{background:'#fff',color:'#e11d48',border:'1px solid #e5e7eb',height:40,width:40,borderRadius:8,boxShadow:'none',display:'flex',alignItems:'center',justifyContent:'center',fontSize:24}} aria-label="削除">
-                        <TrashIcon style={{color:'#e11d48',display:'block'}} />
+                      <Button className="rounded-lg w-10 h-10 flex items-center justify-center p-0 border border-zinc-200 !important" 
+                      style={{
+                        background: '#f1f5f9',
+                        color: '#334155',
+                        border: '1px solid #e5e7eb',
+                        borderRadius: 8,
+                        width: 40,
+                        height: 40,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        padding: 0,
+                        boxShadow: 'none',
+                        cursor: 'pointer',
+                      }}
+                      aria-label="削除">
+                        <TrashIcon style={{ width: 22, height: 22, color: '#e11d48', display: 'block' }} />
                       </Button>
                     </div>
                   </TableCell>

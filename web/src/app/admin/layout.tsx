@@ -3,7 +3,7 @@
 import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
-import { Users, Package, TrendingUp, FileText, Settings } from "lucide-react";
+import { Users, Package, TrendingUp, FileText, Settings, Building2 } from "lucide-react";
 
 function parseJwt(token: string): any {
   try {
@@ -47,7 +47,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           {
             label: "支店管理",
             href: "/admin/branches",
-            icon: <Settings size={18} style={{marginRight: 12}} />,
+            icon: <Building2 size={18} style={{marginRight: 12}} />,
           },
         ]
       : []),
