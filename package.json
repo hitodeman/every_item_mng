@@ -11,7 +11,8 @@
   "license": "ISC",
   "packageManager": "pnpm@10.14.0",
   "dependencies": {
-    "dotenv": "^17.2.1"
+    "dotenv": "^17.2.1",
+    "jwks-rsa": "^3.2.0"
   },
   "devDependencies": {
     "@supabase/mcp-server-supabase": "^0.4.5"

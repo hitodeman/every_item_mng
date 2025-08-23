@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import AuthGuard from "./AuthGuard";
+// すべてのページでAuthGuardを通すことでaccess_tokenの有無をチェック
 
 const geistSans = Geist({
   variable: "--font-geist-sans",

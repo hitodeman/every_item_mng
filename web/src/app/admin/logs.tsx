@@ -1,6 +1,7 @@
 
 "use client";
 import { useEffect, useState } from "react";
+import { fetchWithAuth } from "./layout";
 import { Card, CardContent, CardHeader, CardTitle } from "./Card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "./Table";
 import { Badge } from "./Badge";
@@ -53,10 +54,7 @@ export default function OperationLogsPage() {
       setLoading(true);
       setError("");
       try {
-        const token = localStorage.getItem("jwt_token");
-        const res = await fetch(`${API_URL}/operation-logs?limit=100`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
+  const res = await fetchWithAuth(`${API_URL}/operation-logs?limit=100`);
         if (!res.ok) throw new Error("ログ取得に失敗しました");
         const json = await res.json();
         setLogs(json.data || []);
@@ -75,10 +73,7 @@ export default function OperationLogsPage() {
 
   const handleDownloadCSV = async () => {
     try {
-      const token = localStorage.getItem("jwt_token");
-      const res = await fetch(`${API_URL}/operation-logs/export`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+  const res = await fetchWithAuth(`${API_URL}/operation-logs/export`);
       if (!res.ok) throw new Error("CSVエクスポートに失敗しました");
       const blob = await res.blob();
       const url = window.URL.createObjectURL(blob);

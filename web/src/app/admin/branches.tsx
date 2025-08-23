@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import { fetchWithAuth } from "./layout";
 import { Card, CardContent, CardHeader, CardTitle } from "./Card";
 import { Input } from "./Input";
 import { Button } from "./Button";
@@ -20,59 +21,56 @@ export default function BranchesAdmin() {
   const [branches, setBranches] = useState([]);
   const [name, setName] = useState("");
   const [address, setAddress] = useState("");
-  const [token, setToken] = useState("");
   const [editId, setEditId] = useState<string | null>(null);
   const [editName, setEditName] = useState("");
   const [editAddress, setEditAddress] = useState("");
+  const [role, setRole] = useState<string>("");
+  const [branchId, setBranchId] = useState<string>("");
   const [roleError, setRoleError] = useState("");
   // 検索用state
   const [searchName, setSearchName] = useState("");
   const [searchAddress, setSearchAddress] = useState("");
 
-  // 認証トークンはlocalStorageから取得（仮実装）
   useEffect(() => {
     const raw = localStorage.getItem("jwt_token") || "";
-    // JWT形式チェック
     const jwtPattern = /^[A-Za-z0-9-_]+\.[A-Za-z0-9-_]+\.[A-Za-z0-9-_]+$/;
     if (jwtPattern.test(raw)) {
-      setToken(raw);
       const payload = parseJwt(raw);
-      if (payload?.role !== "admin" && payload?.role !== "branch_admin") {
+      if (!payload?.app_metadata.role || (payload.app_metadata.role !== "admin" && payload.app_metadata.role !== "branch_admin")) {
         setRoleError("管理者または支店管理者のみアクセス可能です");
+        return;
       }
+      setRole(payload.app_metadata.role);
+      setBranchId(payload.app_metadata.branch_id || "");
     } else {
       localStorage.removeItem("jwt_token");
-      setToken("");
+      setRoleError("ログイン情報が無効です");
     }
   }, []);
 
   // 一覧取得
   useEffect(() => {
-    if (!token) return;
-    fetch(`${API_URL}/branches`, {
-      headers: { Authorization: `Bearer ${token}` },
-    })
+    const raw = localStorage.getItem("jwt_token") || "";
+    if (!role || !raw) return;
+    fetchWithAuth(`${API_URL}/branches`)
       .then((res) => res.json())
       .then((res) => setBranches(res.data || []));
-  }, [token]);
+  }, [role]);
 
   // 追加
   const handleAdd = async () => {
     if (!name) return;
-    await fetch(`${API_URL}/branches`, {
+    await fetchWithAuth(`${API_URL}/branches`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
       },
       body: JSON.stringify({ name, address }),
     });
     setName("");
     setAddress("");
     // 再取得
-    fetch(`${API_URL}/branches`, {
-      headers: { Authorization: `Bearer ${token}` },
-    })
+    fetchWithAuth(`${API_URL}/branches`)
       .then((res) => res.json())
       .then((res) => setBranches(res.data || []));
   };
@@ -87,33 +85,27 @@ export default function BranchesAdmin() {
   // 編集保存
   const handleEdit = async () => {
     if (!editId) return;
-    await fetch(`${API_URL}/branches/${editId}`, {
+    await fetchWithAuth(`${API_URL}/branches/${editId}`, {
       method: "PUT",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
       },
       body: JSON.stringify({ name: editName, address: editAddress }),
     });
     setEditId(null);
     setEditName("");
     setEditAddress("");
-    fetch(`${API_URL}/branches`, {
-      headers: { Authorization: `Bearer ${token}` },
-    })
+    fetchWithAuth(`${API_URL}/branches`)
       .then((res) => res.json())
       .then((res) => setBranches(res.data || []));
   };
 
   // 論理削除
   const handleDelete = async (id: string) => {
-    await fetch(`${API_URL}/branches/${id}`, {
+    await fetchWithAuth(`${API_URL}/branches/${id}`, {
       method: "DELETE",
-      headers: { Authorization: `Bearer ${token}` },
     });
-    fetch(`${API_URL}/branches`, {
-      headers: { Authorization: `Bearer ${token}` },
-    })
+    fetchWithAuth(`${API_URL}/branches`)
       .then((res) => res.json())
       .then((res) => setBranches(res.data || []));
   };

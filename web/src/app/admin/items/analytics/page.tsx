@@ -2,6 +2,7 @@
 
 'use client';
 import { useEffect, useState } from "react";
+import { fetchWithAuth } from "../../layout";
 
 import {
   LineChart, Line, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer,
@@ -21,18 +22,13 @@ export default function AnalyticsTest() {
       setLoading(true);
       setError("");
       try {
-        const token = typeof window !== "undefined" ? localStorage.getItem("jwt_token") : "";
-        // 日次集計
-        const res = await fetch(`${API_URL}/items-history/analytics?months=3`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
+  // 日次集計
+  const res = await fetchWithAuth(`${API_URL}/items-history/analytics?months=3`);
         if (!res.ok) throw new Error("集計データ取得に失敗しました");
         const json = await res.json();
         setData(json.data || []);
         // アイテム一覧
-        const res2 = await fetch(`${API_URL}/items`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
+  const res2 = await fetchWithAuth(`${API_URL}/items`);
         if (!res2.ok) throw new Error("アイテム一覧取得に失敗しました");
         const json2 = await res2.json();
         setItems(json2.data || []);

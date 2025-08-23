@@ -18,6 +18,8 @@ import { Plus, Search } from "lucide-react";
 import { EditIcon, TrashIcon } from "./CustomIcons";
 import { Badge } from "./Badge";
 // JWTデコード用
+import { fetchWithAuth } from "./layout";
+// JWTのpayloadをデコードする関数（Supabase Auth access_tokenにも利用可）
 function parseJwt(token: string): any {
   try {
     return JSON.parse(atob(token.split('.')[1]));
@@ -45,32 +47,42 @@ function getRoleLabel(role: string) {
   }
 }
 
+type Branch = { id: string; name: string };
 export default function UsersAdmin() {
   const [searchTerm, setSearchTerm] = useState("");
-  const [token, setToken] = useState("");
+  const [role, setRole] = useState("");
+  const [branchId, setBranchId] = useState("");
   const [roleFilter, setRoleFilter] = useState("all");
   const [users, setUsers] = useState<User[]>([]); // User[]型で初期化
-  const [userId, setUserId] = useState<string | null>(null);
+  const [branches, setBranches] = useState<Branch[]>([]);
+  const [editUser, setEditUser] = useState<User | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editBranchId, setEditBranchId] = useState("");
+  const [showEditModal, setShowEditModal] = useState(false);
 
   useEffect(() => {
     const raw = localStorage.getItem("jwt_token") || "";
     const jwtPattern = /^[A-Za-z0-9-_]+\.[A-Za-z0-9-_]+\.[A-Za-z0-9-_]+$/;
     if (jwtPattern.test(raw)) {
-      setToken(raw);
       const payload = parseJwt(raw);
-      setUserId(payload?.id ?? null);
+      if (!payload?.app_metadata.role || (payload.app_metadata.role !== "admin" && payload.app_metadata.role !== "branch_admin")) {
+        // アクセス不可
+        setRole("");
+        setBranchId("");
+        return;
+      }
+      setRole(payload.app_metadata.role);
+      setBranchId(payload.app_metadata.branch_id || "");
       // ユーザーとブランチ情報を同時取得
       Promise.all([
-        fetch(`${API_URL}/profiles`, {
-          headers: { Authorization: `Bearer ${raw}` },
-        }).then(res => res.json()),
-        fetch(`${API_URL}/branches`, {
-          headers: { Authorization: `Bearer ${raw}` },
-        }).then(res => res.json())
+        fetchWithAuth(`${API_URL}/profiles`).then(res => res.json()),
+        fetchWithAuth(`${API_URL}/branches`).then(res => res.json())
       ]).then(([profilesRes, branchesRes]) => {
-        const branches = Array.isArray(branchesRes.data) ? branchesRes.data : [];
+        const branchesArr = Array.isArray(branchesRes.data) ? branchesRes.data : [];
+        setBranches(branchesArr);
+        console.log("支店情報:", branchesArr);
         const branchMap = new Map<string, string>();
-        branches.forEach((b: any) => {
+        branchesArr.forEach((b: any) => {
           branchMap.set(b.id, b.name);
         });
         if (Array.isArray(profilesRes.data)) {
@@ -78,6 +90,7 @@ export default function UsersAdmin() {
             ...user,
             branchName: user.branch_id ? branchMap.get(user.branch_id) || "" : ""
           }));
+          console.log("ユーザー情報:", usersWithBranchName);
           setUsers(usersWithBranchName);
         } else {
           setUsers([]);
@@ -85,8 +98,8 @@ export default function UsersAdmin() {
       });
     } else {
       localStorage.removeItem("jwt_token");
-      setToken("");
-      setUserId(null);
+      setRole("");
+      setBranchId("");
     }
   }, []);
   const filteredUsers = users.filter(user => {
@@ -95,6 +108,33 @@ export default function UsersAdmin() {
     return matchesSearch && matchesRole;
   });
   console.log("Filtered Users:", filteredUsers);
+  // 編集モーダルの表示
+  const openEditModal = (user: User) => {
+    setEditUser(user);
+    setEditName(user.name);
+    setEditBranchId(user.branch_id || "");
+    setShowEditModal(true);
+  };
+
+  // 編集保存処理
+  const handleEditSave = async () => {
+    if (!editUser) return;
+    const res = await fetchWithAuth(`${API_URL}/profiles/${editUser.id}`, {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ name: editName, branch_id: editBranchId }),
+    });
+    if (res.ok) {
+      // ローカルのusersも更新
+      setUsers(users => users.map(u => u.id === editUser.id ? { ...u, name: editName, branch_id: editBranchId, branchName: branches.find(b => b.id === editBranchId)?.name || "" } : u));
+      setShowEditModal(false);
+    } else {
+      alert("更新に失敗しました");
+    }
+  };
+
   return (
     <div className="card" style={{ maxWidth: 900, margin: "2rem auto" }}>
       <CardHeader>
@@ -181,6 +221,7 @@ export default function UsersAdmin() {
                         cursor: 'pointer',
                       }}
                         aria-label="編集"
+                        onClick={() => openEditModal(user)}
                       >
                         <EditIcon style={{ width: 22, height: 22, color: '#334155', display: 'block' }} />
                       </Button>
@@ -210,6 +251,31 @@ export default function UsersAdmin() {
           </Table>
         </div>
       </CardContent>
-    </div>
+    {/* 編集モーダル */}
+    {showEditModal && (
+      <div style={{ position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh', background: 'rgba(0,0,0,0.2)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div style={{ background: '#fff', borderRadius: 8, padding: 32, minWidth: 320, boxShadow: '0 2px 16px rgba(0,0,0,0.15)' }}>
+          <h2 style={{ fontWeight: 600, fontSize: 20, marginBottom: 16 }}>ユーザー編集</h2>
+          <div style={{ marginBottom: 16 }}>
+            <Label>氏名</Label>
+            <Input value={editName} onChange={e => setEditName(e.target.value)} />
+          </div>
+          <div style={{ marginBottom: 24 }}>
+            <Label>支店</Label>
+            <select value={editBranchId} onChange={e => setEditBranchId(e.target.value)} className="border rounded px-2 py-1 w-full">
+              <option value="">未設定</option>
+              {branches.map(branch => (
+                <option key={branch.id} value={branch.id}>{branch.name}</option>
+              ))}
+            </select>
+          </div>
+          <div className="flex gap-4 justify-end">
+            <Button onClick={() => setShowEditModal(false)}>キャンセル</Button>
+            <Button onClick={handleEditSave}>保存</Button>
+          </div>
+        </div>
+      </div>
+    )}
+  </div>
   );
 }

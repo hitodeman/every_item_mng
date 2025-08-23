@@ -13,6 +13,7 @@ function parseJwt(token: string): any {
 
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+import { fetchWithAuth } from "./layout";
 
 type Item = {
   id: number;
@@ -25,18 +26,24 @@ type Item = {
 };
 
 export default function ItemsAdmin() {
+  const [role, setRole] = useState("");
   const [branchId, setBranchId] = useState("");
-  const [token, setToken] = useState("");
-  // ロールチェック: admin以外はアクセス不可
   const [roleError, setRoleError] = useState("");
   useEffect(() => {
     const raw = localStorage.getItem("jwt_token") || "";
-    try {
-      const payload = JSON.parse(atob(raw.split('.')[1]));
-      if (payload?.role !== "admin" && payload?.role !== "branch_admin") {
+    const jwtPattern = /^[A-Za-z0-9-_]+\.[A-Za-z0-9-_]+\.[A-Za-z0-9-_]+$/;
+    if (jwtPattern.test(raw)) {
+      const payload = parseJwt(raw);
+      if (!payload?.app_metadata.role || (payload?.app_metadata.role !== "admin" && payload?.app_metadata.role !== "branch_admin")) {
         setRoleError("管理者または支店管理者のみアクセス可能です");
+        return;
       }
-    } catch {}
+      setRole(payload.app_metadata.role);
+      setBranchId(payload.app_metadata.branch_id || "");
+    } else {
+      localStorage.removeItem("jwt_token");
+      setRoleError("ログイン情報が無効です");
+    }
   }, []);
   const [items, setItems] = useState<Item[]>([]);
   const [name, setName] = useState("");
@@ -50,10 +57,8 @@ export default function ItemsAdmin() {
   const [editPrice, setEditPrice] = useState("");
   const [editStock, setEditStock] = useState("");
   const [editThreshold, setEditThreshold] = useState("");
-  // userIdInput, editUserIdは不要
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
-  const [userId, setUserId] = useState<string | null>(null);
   // 在庫増減用
   const [stockEditId, setStockEditId] = useState<number | null>(null);
   const [stockChange, setStockChange] = useState("");
@@ -65,36 +70,15 @@ export default function ItemsAdmin() {
   const [history, setHistory] = useState<any[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
 
+  // items取得
   useEffect(() => {
-    const raw = localStorage.getItem("jwt_token") || "";
-    const jwtPattern = /^[A-Za-z0-9-_]+\.[A-Za-z0-9-_]+\.[A-Za-z0-9-_]+$/;
-    if (jwtPattern.test(raw)) {
-      setToken(raw);
-      const payload = parseJwt(raw);
-      setUserId(payload?.id ?? null);
-      // プロファイルからbranch_id取得
-      fetch(`${API_URL}/profiles`, {
-        headers: { Authorization: `Bearer ${raw}` },
-      })
-        .then(res => res.json())
-        .then(res => {
-          if (res.data && res.data.length > 0) setBranchId(res.data[0].branch_id || "");
-        });
-    } else {
-      localStorage.removeItem("jwt_token");
-      setToken("");
-      setUserId(null);
-    }
-  }, []);
-
-  useEffect(() => {
-    if (!token) return;
-    fetch(`${API_URL}/items`, {
-      headers: { Authorization: `Bearer ${token}` },
-    })
+    if (!role) return;
+    fetchWithAuth(`${API_URL}/items`)
       .then((res) => res.json())
       .then((res) => setItems(res.data || []));
-  }, [token, success]);
+  }, [role, success]);
+
+  // items取得はrole依存のuseEffectでfetchWithAuthに統一済み
 
   const handleAdd = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -119,11 +103,10 @@ export default function ItemsAdmin() {
       setError("単位は1〜5文字で入力してください");
       return;
     }
-    const res = await fetch(`${API_URL}/items`, {
+    const res = await fetchWithAuth(`${API_URL}/items`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
       },
       body: JSON.stringify({
         name,
@@ -131,7 +114,7 @@ export default function ItemsAdmin() {
         price: Number(price),
         stock: Number(stock),
         threshold: Number(threshold),
-        user_id: userId, // ログインユーザーIDを利用
+  // user_idはJWTからサーバー側で取得
         branch_id: branchId,
       }),
     });
@@ -177,11 +160,10 @@ export default function ItemsAdmin() {
       setError("単位は1〜5文字で入力してください");
       return;
     }
-    const res = await fetch(`${API_URL}/items/${editId}`, {
+    const res = await fetchWithAuth(`${API_URL}/items/${editId}`, {
       method: "PUT",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
       },
       body: JSON.stringify({
         name: editName,
@@ -189,7 +171,7 @@ export default function ItemsAdmin() {
         price: Number(editPrice),
         stock: Number(editStock),
         threshold: Number(editThreshold),
-        user_id: userId, // ログインユーザーIDを利用
+  // user_idはJWTからサーバー側で取得
       }),
     });
     const data = await res.json();
@@ -206,9 +188,8 @@ export default function ItemsAdmin() {
   const handleDelete = async (id: number) => {
     setError("");
     setSuccess("");
-    const res = await fetch(`${API_URL}/items/${id}`, {
-      method: "DELETE",
-      headers: { Authorization: `Bearer ${token}` },
+    const res = await fetchWithAuth(`${API_URL}/items/${id}`, {
+      method: "DELETE"
     });
     const data = await res.json();
     if (!res.ok) {
@@ -340,9 +321,9 @@ export default function ItemsAdmin() {
                             setError(""); setSuccess("");
                             const n = Number(stockChange);
                             if (!Number.isInteger(n) || n === 0) { setError("増減数は非ゼロの整数で"); return; }
-                            const res = await fetch(`${API_URL}/items/${item.id}/stock`, {
+                            const res = await fetchWithAuth(`${API_URL}/items/${item.id}/stock`, {
                               method: "POST",
-                              headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+                              headers: { "Content-Type": "application/json" },
                               body: JSON.stringify({ change: n, reason: stockReason })
                             });
                             const data = await res.json();
@@ -371,7 +352,7 @@ export default function ItemsAdmin() {
                     <button
                       onClick={async () => {
                         setHistoryId(item.id); setHistoryName(item.name);setHistoryLoading(true); setHistory([]);
-                        const res = await fetch(`${API_URL}/items/${item.id}/history`, { headers: { Authorization: `Bearer ${token}` } });
+                        const res = await fetchWithAuth(`${API_URL}/items/${item.id}/history`);
                         const data = await res.json();
                         setHistory(data.data || []); setHistoryLoading(false);
                       }}

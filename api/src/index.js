@@ -4,7 +4,7 @@
 import express from 'express';
 import cors from 'cors';
 import jwt from 'jsonwebtoken';
-import bcrypt from 'bcryptjs';
+import { createSupabaseJwtVerifier } from './jwks-auth.js';
 import path from "path";
 import { fileURLToPath } from "url";
 
@@ -38,31 +38,11 @@ async function recordOperationLog({ user, operation, target_type, target_id = nu
   });
 }
 
-// テスト用ユーザー（本番はDB管理推奨）
-// idはuuidで運用
-const users = [
-  {
-    id: '11111111-1111-1111-1111-111111111111',
-    username: 'testuser',
-    passwordHash: bcrypt.hashSync('password123', 10), // パスワード: password123
-    role: 'admin',
-  },
-  {
-    id: '880eec62-36ce-47e4-84aa-bdab00c99375',
-    username: 'branchadmin1',
-    passwordHash: bcrypt.hashSync('branchpass', 10), // パスワード: branchpass
-    role: 'branch_admin',
-  },
-  {
-    id: '900e27a7-30aa-4f8b-a391-fd2526acaff8',
-    username: 'user1',
-    passwordHash: bcrypt.hashSync('userpass', 10), // パスワード: userpass
-    role: 'user',
-  },
-];
+// users配列・bcrypt認証は廃止。Supabase Authで認証・ユーザー管理を行う。
 // ロール判定ミドルウェア
 function authorizeRole(roles) {
   return (req, res, next) => {
+    console.log("authorizeRole req.user:", req);
     if (!req.user || !roles.includes(req.user.role)) {
       return res.status(403).json({ error: 'Forbidden: insufficient role' });
     }
@@ -77,14 +57,16 @@ app.use(cors());
 app.use(express.json());
 
 
-// JWT認証ミドルウェア
-function authenticateToken(req, res, next) {
+// Supabase AuthのJWT認証ミドルウェア
+const verifySupabaseJwt = createSupabaseJwtVerifier(SUPABASE_URL);
+async function authenticateToken(req, res, next) {
   const authHeader = req.headers['authorization'];
   const token = authHeader && authHeader.split(' ')[1];
   if (!token) return res.status(401).json({ error: 'Token required' });
-  jwt.verify(token, JWT_SECRET, (err, user) => {
-    if (err) return res.status(403).json({ error: 'Invalid token' });
-    req.user = user;
+  verifySupabaseJwt(token, (err, decoded) => {
+    if (err) return res.status(403).json({ error: 'Invalid token', details: err.message, token: token });
+    // JWTにroleが含まれていればセット
+  req.user = { id: decoded.sub, email: decoded.email, role: decoded.role, branch_id: decoded.branch_id };
     next();
   });
 }
@@ -94,20 +76,24 @@ app.get('/health', (req, res) => {
   res.json({ status: 'ok' });
 });
 
-// ログインAPI
 
+// Supabase Auth連携ログインAPI
+// クライアント側でsupabase.auth.signInWithPassword({ email, password })を実行し、access_tokenを取得する運用を推奨
+// ここではバックエンドで代理認証する例も記載
 app.post('/login', async (req, res) => {
-  const { username, password } = req.body;
-  const user = users.find(u => u.username === username);
-  if (!user) return res.status(401).json({ error: 'Invalid credentials' });
-  if (!bcrypt.compareSync(password, user.passwordHash)) {
+  const { email, password } = req.body;
+  // Supabase Auth REST APIで認証
+  const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+  if (error || !data.session) {
     return res.status(401).json({ error: 'Invalid credentials' });
   }
-  // idはuuidでJWTにセット
-  const token = jwt.sign({ id: user.id, username: user.username, role: user.role }, JWT_SECRET, { expiresIn: JWT_EXPIRES_IN });
+  // JWT(access_token)をそのまま返す
+  const token = data.session.access_token;
+  // プロファイル情報取得
+  const { data: profile, error: profileError } = await supabase.from('profiles').select('*').eq('id', data.user.id).single();
   // 操作ログ記録
-  await recordOperationLog({ user, operation: 'login', target_type: 'login', detail: 'ログイン' });
-  res.json({ token });
+  await recordOperationLog({ user: { id: data.user.id, username: data.user.email, role: profile?.role || 'user' }, operation: 'login', target_type: 'login', detail: 'ログイン' });
+  res.json({ token, user: { id: data.user.id, email: data.user.email, role: profile?.role || 'user', name: profile?.name || '' } });
 });
 
 // ログアウトAPI（クライアント側でトークン破棄）
@@ -133,29 +119,22 @@ app.get('/user-or-branchadmin-or-admin', authenticateToken, authorizeRole(['admi
 });
 
 
+
 // Supabase RLSサンプルAPI（admin:全件, branch_admin:自支店, user:自分のみ）
 app.get('/supabase-items', authenticateToken, async (req, res) => {
   let query = supabase.from('items').select('*');
   if (req.user.role === 'branch_admin') {
-    // 支店管理者は自分の支店のアイテムのみ
-    const { data: profile, error: profileError } = await supabase.from('profiles').select('branch_id').eq('id', req.user.id).single();
-    if (profileError) return res.status(500).json({ error: profileError.message });
-    query = query.eq('branch_id', profile.branch_id);
+    // JWTにbranch_idがあればそれを使う
+    const branchId = req.user.branch_id;
+    if (!branchId) {
+      // 念のためprofiles参照
+      const { data: profile, error: profileError } = await supabase.from('profiles').select('branch_id').eq('id', req.user.id).single();
+      if (profileError || !profile) return res.status(500).json({ error: '支店情報取得失敗' });
+      query = query.eq('branch_id', profile.branch_id);
+    } else {
+      query = query.eq('branch_id', branchId);
+    }
   } else if (req.user.role !== 'admin') {
-    // 一般ユーザーは自分のidに紐づくデータのみ
-    query = query.eq('user_id', req.user.id);
-  }
-  const { data, error } = await query;
-  if (error) return res.status(500).json({ error: error.message });
-  res.json({ data });
-});
-
-
-// Supabase RLSサンプルAPI（adminのみ全件、userは自分のデータのみ取得）
-app.get('/supabase-items', authenticateToken, async (req, res) => {
-  let query = supabase.from('items').select('*');
-  if (req.user.role !== 'admin') {
-    // userは自分のidに紐づくデータのみ取得（例: user_idカラム）
     query = query.eq('user_id', req.user.id);
   }
   const { data, error } = await query;
@@ -168,16 +147,16 @@ app.get('/supabase-items', authenticateToken, async (req, res) => {
 // 一覧取得（admin:全件, branch_admin:自支店, user:自支店のみ）
 app.get('/branches', authenticateToken, async (req, res) => {
   let query = supabase.from('branches').select('*').eq('is_deleted', false);
-  if (req.user.role === 'branch_admin') {
-    // 支店管理者は自分の支店のみ
-    const { data: profile, error: profileError } = await supabase.from('profiles').select('branch_id').eq('id', req.user.id).single();
-    if (profileError) return res.status(500).json({ error: profileError.message });
-    query = query.eq('id', profile.branch_id);
-  } else if (req.user.role !== 'admin') {
-    // 一般ユーザーは自分の支店のみ
-    const { data: profile, error: profileError } = await supabase.from('profiles').select('branch_id').eq('id', req.user.id).single();
-    if (profileError) return res.status(500).json({ error: profileError.message });
-    query = query.eq('id', profile.branch_id);
+  if (req.user.role === 'branch_admin' || req.user.role === 'user') {
+    // JWTにbranch_idがあればそれを使う
+    const branchId = req.user.branch_id;
+    if (!branchId) {
+      const { data: profile, error: profileError } = await supabase.from('profiles').select('branch_id').eq('id', req.user.id).single();
+      if (profileError || !profile) return res.status(500).json({ error: '支店情報取得失敗' });
+      query = query.eq('id', profile.branch_id);
+    } else {
+      query = query.eq('id', branchId);
+    }
   }
   const { data, error } = await query;
   if (error) return res.status(500).json({ error: error.message });
@@ -214,12 +193,15 @@ app.delete('/branches/:id', authenticateToken, authorizeRole(['admin']), async (
 app.get('/profiles', authenticateToken, async (req, res) => {
   let query = supabase.from('profiles').select('*');
   if (req.user.role === 'branch_admin') {
-    // 支店管理者は自分の支店のユーザーのみ
-    const { data: profile, error: profileError } = await supabase.from('profiles').select('branch_id').eq('id', req.user.id).single();
-    if (profileError) return res.status(500).json({ error: profileError.message });
-    query = query.eq('branch_id', profile.branch_id);
+    const branchId = req.user.branch_id;
+    if (!branchId) {
+      const { data: profile, error: profileError } = await supabase.from('profiles').select('branch_id').eq('id', req.user.id).single();
+      if (profileError || !profile) return res.status(500).json({ error: '支店情報取得失敗' });
+      query = query.eq('branch_id', profile.branch_id);
+    } else {
+      query = query.eq('branch_id', branchId);
+    }
   } else if (req.user.role !== 'admin') {
-    // 一般ユーザーは自分のみ
     query = query.eq('id', req.user.id);
   }
   const { data, error } = await query;
@@ -400,28 +382,40 @@ app.listen(port, () => {
 });
 
 // --- 在庫アイテム（items）CRUD --- 
-// 一覧取得（adminは全件、userは自分のuser_idのみ）
+// 一覧取得（adminは全件、branch_admin/userは自支店の全ユーザー分）
 app.get('/items', authenticateToken, async (req, res) => {
   let query = supabase.from('items').select('*').eq('is_deleted', false);
   if (req.user.role === 'admin') {
     // 全件
   } else if (req.user.role === 'branch_admin' || req.user.role === 'user') {
-    // 自分の支店の全ユーザーのuser_idを取得
-    const { data: profile, error: profileError } = await supabase.from('profiles').select('branch_id').eq('id', req.user.id).single();
-    if (profileError || !profile) return res.status(500).json({ error: '支店情報取得失敗' });
-    const { data: users, error: usersError } = await supabase.from('profiles').select('id').eq('branch_id', profile.branch_id);
-    if (usersError) return res.status(500).json({ error: 'ユーザー一覧取得失敗' });
-    const userIds = users.map(u => u.id);
-    query = query.in('user_id', userIds);
+    const branchId = req.user.branch_id;
+    if (!branchId) {
+      const { data: profile, error: profileError } = await supabase.from('profiles').select('branch_id').eq('id', req.user.id).single();
+      if (profileError || !profile) return res.status(500).json({ error: '支店情報取得失敗' });
+      // 取得したbranch_idでユーザー一覧
+      const { data: users, error: usersError } = await supabase.from('profiles').select('id').eq('branch_id', profile.branch_id);
+      if (usersError) return res.status(500).json({ error: 'ユーザー一覧取得失敗' });
+      const userIds = users.map(u => u.id);
+      query = query.in('user_id', userIds);
+    } else {
+      // JWT branch_idでユーザー一覧
+      const { data: users, error: usersError } = await supabase.from('profiles').select('id').eq('branch_id', branchId);
+      if (usersError) return res.status(500).json({ error: 'ユーザー一覧取得失敗' });
+      const userIds = users.map(u => u.id);
+      query = query.in('user_id', userIds);
+    }
   }
   const { data, error } = await query;
   if (error) return res.status(500).json({ error: error.message });
   res.json({ data });
 });
 
-// 追加（adminのみ）
-app.post('/items', authenticateToken, authorizeRole(['admin', 'user']), async (req, res) => {
-  const { name, unit, price, stock, threshold, user_id, branch_id } = req.body;
+// 追加（admin, branch_admin, user）
+app.post('/items', authenticateToken, authorizeRole(['admin', 'branch_admin', 'user']), async (req, res) => {
+  const { name, unit, price, stock, threshold } = req.body;
+  // user_id, branch_idはサーバー側でJWTから強制
+  const user_id = req.user.id;
+  const branch_id = req.user.branch_id;
   // バリデーション: name必須, unit必須, price=半角数字4桁以内/整数/日本円, stock=整数, threshold=整数
   if (!name || !unit) return res.status(400).json({ error: 'name, unitは必須です' });
   if (!/^[0-9]{1,4}$/.test(String(price))) return res.status(400).json({ error: 'priceは半角数字4桁以内の整数（日本円）で入力してください' });

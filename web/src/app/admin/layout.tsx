@@ -4,34 +4,54 @@ import React, { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
 import { Users, Package, TrendingUp, FileText, Settings, Building2 } from "lucide-react";
+import { supabase } from "@/utils/supabaseClient";
 
-function parseJwt(token: string): any {
-  try {
-    return JSON.parse(atob(token.split('.')[1]));
-  } catch {
-    return null;
+// JWT付きfetchラッパー
+export async function fetchWithAuth(input: RequestInfo | URL, init: RequestInit = {}) {
+  const token = typeof window !== "undefined" ? localStorage.getItem("jwt_token") : null;
+  if (!token) {
+    throw new Error("ログイン情報がありません");
   }
+  const headers = new Headers(init.headers || {});
+  headers.set("Authorization", `Bearer ${token}`);
+  return fetch(input, { ...init, headers });
 }
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const [role, setRole] = useState<string>("");
+  const [branchId, setBranchId] = useState<string>("");
   const [roleError, setRoleError] = useState("");
   const [checking, setChecking] = useState(true);
   const router = useRouter();
   const pathname = usePathname();
   useEffect(() => {
-    const raw = typeof window !== "undefined" ? localStorage.getItem("jwt_token") || "" : "";
-    const jwtPattern = /^[A-Za-z0-9-_]+\.[A-Za-z0-9-_]+\.[A-Za-z0-9-_]+$/;
-    if (!raw || !jwtPattern.test(raw)) {
-      router.replace("/login");
-      return;
-    }
-    const payload = parseJwt(raw);
-    if (payload?.role !== "admin" && payload?.role !== "branch_admin") {
-      setRoleError("管理者または支店管理者のみアクセス可能です");
-    }
-    setRole(payload?.role || "");
-    setChecking(false);
+    const checkRole = () => {
+      const raw = typeof window !== "undefined" ? localStorage.getItem("jwt_token") || "" : "";
+      const jwtPattern = /^[A-Za-z0-9-_]+\.[A-Za-z0-9-_]+\.[A-Za-z0-9-_]+$/;
+      if (!raw || !jwtPattern.test(raw)) {
+        router.replace("/login");
+        return;
+      }
+      // JWTからrole, branch_id, user idを取得
+      let payload: any = {};
+      try {
+        payload = JSON.parse(atob(raw.split('.')[1]));
+      } catch {}
+      if (!payload.sub || !payload.app_metadata.role) {
+        router.replace("/login");
+        return;
+      }
+      if (payload.app_metadata.role !== "admin" && payload.app_metadata.role !== "branch_admin") {
+        console.log(payload);
+        setRoleError("管理者または支店管理者のみアクセス可能です（layout）");
+        setChecking(false);
+        return;
+      }
+      setRole(payload.app_metadata.role);
+      setBranchId(payload.app_metadata.branch_id || "");
+      setChecking(false);
+    };
+    checkRole();
   }, [router]);
   if (checking) {
     return null;

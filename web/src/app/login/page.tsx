@@ -1,10 +1,17 @@
 "use client";
-import { useState } from "react";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+
+import { createClient } from "@supabase/supabase-js";
+import React, { useState } from "react";
+import Link from "next/link";
+
+
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "";
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
+const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 export default function LoginPage() {
-  const [username, setUsername] = useState("");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
@@ -13,25 +20,15 @@ export default function LoginPage() {
     e.preventDefault();
     setError("");
     setSuccess("");
-    const res = await fetch(`${API_URL}/login`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ username, password }),
-    });
-    if (!res.ok) {
-      setError("ログイン失敗: ユーザー名またはパスワードが正しくありません");
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error || !data.session) {
+      setError("ログイン失敗: メールアドレスまたはパスワードが正しくありません");
       return;
     }
-    const data = await res.json();
-    if (data.token) {
-      // JWT形式チェック（英数字・ハイフン・アンダースコア・ドット3分割）
-      const jwtPattern = /^[A-Za-z0-9-_]+\.[A-Za-z0-9-_]+\.[A-Za-z0-9-_]+$/;
-      if (jwtPattern.test(data.token)) {
-        localStorage.setItem("jwt_token", data.token);
-        setSuccess("ログイン成功。管理画面に遷移してください。");
-      } else {
-        setError("不正なトークン形式です");
-      }
+    const token = data.session.access_token;
+    if (token) {
+      localStorage.setItem("jwt_token", token);
+      setSuccess("ログイン成功。管理画面に遷移してください。");
     } else {
       setError("トークン取得失敗");
     }
@@ -43,10 +40,10 @@ export default function LoginPage() {
       <form onSubmit={handleLogin}>
         <div style={{ marginBottom: 12 }}>
           <input
-            type="text"
-            placeholder="ユーザー名"
-            value={username}
-            onChange={(e) => setUsername(e.target.value)}
+            type="email"
+            placeholder="メールアドレス"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
             required
             style={{ color: '#222', background: '#fff', border: '1px solid #ccc', borderRadius: 6, padding: '10px 12px', width: '100%', fontSize: 16 }}
           />
@@ -63,6 +60,10 @@ export default function LoginPage() {
         </div>
         <button type="submit">ログイン</button>
       </form>
+      <div style={{ marginTop: 16, textAlign: 'center' }}>
+        <span>アカウントをお持ちでない方は </span>
+        <Link href="/signup" style={{ color: '#2563eb', textDecoration: 'underline' }}>サインアップ</Link>
+      </div>
       {error && <div style={{ color: "red", marginTop: 16 }}>{error}</div>}
       {success && <div style={{ color: "green", marginTop: 16 }}>{success}</div>}
     </div>

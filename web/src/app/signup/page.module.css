@@ -1,0 +1,44 @@
+/* サインアップページ用のシンプルなスタイル例 */
+.container {
+  max-width: 400px;
+  margin: 4rem auto;
+  background: #f9f9f9;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+  padding: 2rem 2rem 1.5rem 2rem;
+}
+.title {
+  margin-bottom: 1.5rem;
+  font-size: 1.5rem;
+  text-align: center;
+}
+.input {
+  color: #222;
+  background: #fff;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  padding: 10px 12px;
+  width: 100%;
+  font-size: 16px;
+  margin-bottom: 12px;
+}
+.button {
+  width: 100%;
+  background: #2563eb;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  padding: 10px 0;
+  font-size: 16px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+.buttonDisabled {
+  background: #a5b4fc;
+  cursor: not-allowed;
+}
+.message {
+  margin-top: 16px;
+  text-align: center;
+  color: #2563eb;
+}
